@@ -1,0 +1,298 @@
+openapi: 3.1.0
+info:
+  title: Daymark Task Manager API
+  version: 1.0.0
+  description: REST API for authenticated task management.
+servers:
+  - url: http://localhost:5000
+    description: Local development
+  - url: https://your-vercel-domain.example/api
+    description: Replace with the deployed Vercel origin
+security:
+  - bearerAuth: []
+paths:
+  /register:
+    post:
+      security: []
+      summary: Create an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string, maxLength: 100 }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8, maxLength: 72 }
+      responses:
+        "201":
+          description: Account created; contains a signed access token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "400":
+          description: Invalid account data.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: Email is already registered.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /login:
+    post:
+      security: []
+      summary: Authenticate an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Signed access token returned.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Invalid credentials.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /tasks:
+    get:
+      summary: List the authenticated user's tasks
+      responses:
+        "200":
+          description: Tasks belonging to the current user.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskListResponse" }
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    post:
+      summary: Create a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskInput"
+      responses:
+        "201":
+          description: Created task.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskResponse" }
+        "400":
+          description: Invalid task data.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /tasks/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      summary: Retrieve an owned task
+      responses:
+        "200":
+          description: Task details.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskResponse" }
+        "404":
+          description: Task not found for this user.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    put:
+      summary: Update an owned task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpdate"
+      responses:
+        "200":
+          description: Updated task.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskResponse" }
+        "400":
+          description: Invalid task data.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Task not found for this user.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    delete:
+      summary: Delete an owned task and its Cloudinary image
+      responses:
+        "204": { description: Task deleted }
+        "404":
+          description: Task not found for this user.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /uploads/signature:
+    post:
+      summary: Create a short-lived Cloudinary upload signature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resourceType]
+              properties:
+                resourceType: { type: string, const: image }
+      responses:
+        "200":
+          description: Signed direct-upload parameters.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadSignature" }
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "503":
+          description: Cloudinary is not configured.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /cron/reminders:
+    get:
+      security:
+        - cronBearerAuth: []
+      summary: Send due-date reminders for tasks due within 24 hours
+      responses:
+        "200": { description: Reminder delivery counts }
+        "401": { description: Missing or invalid cron secret }
+        "502": { description: One or more reminder emails could not be delivered }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    cronBearerAuth:
+      type: http
+      scheme: bearer
+      description: The Vercel Cron Secret from the CRON_SECRET environment variable.
+  schemas:
+    AuthResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, const: Bearer }
+        expiresIn: { type: integer, example: 28800 }
+        user:
+          type: object
+          required: [id, name, email]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            email: { type: string, format: email }
+        notification:
+          type: object
+          properties:
+            sent: { type: boolean }
+            reason: { type: string, enum: [not_configured, delivery_failed] }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+    TaskListResponse:
+      type: object
+      required: [tasks]
+      properties:
+        tasks:
+          type: array
+          items: { $ref: "#/components/schemas/Task" }
+    TaskResponse:
+      type: object
+      required: [task]
+      properties:
+        task: { $ref: "#/components/schemas/Task" }
+        warning: { type: string }
+    Task:
+      type: object
+      required:
+        [id, title, description, status, dueDate, imageUrl, imagePublicId, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        title: { type: string, maxLength: 255 }
+        description: { type: [string, "null"], maxLength: 5000 }
+        status: { type: string, enum: [pending, in_progress, completed] }
+        dueDate: { type: [string, "null"], format: date-time }
+        imageUrl: { type: [string, "null"], format: uri }
+        imagePublicId: { type: [string, "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    UploadSignature:
+      type: object
+      required: [cloudName, apiKey, timestamp, folder, publicId, signature, allowedFormats]
+      properties:
+        cloudName: { type: string }
+        apiKey: { type: string }
+        timestamp: { type: integer }
+        folder: { type: string }
+        publicId: { type: string }
+        signature: { type: string }
+        allowedFormats: { type: string }
+    TaskInput:
+      allOf:
+        - $ref: "#/components/schemas/TaskFields"
+        - type: object
+          required: [title]
+    TaskFields:
+      type: object
+      properties:
+        title: { type: string, maxLength: 255 }
+        description: { type: [string, "null"], maxLength: 5000 }
+        status: { type: string, enum: [pending, in_progress, completed] }
+        dueDate: { type: [string, "null"], format: date-time }
+        imageUrl: { type: [string, "null"], format: uri }
+        imagePublicId: { type: [string, "null"] }
+    TaskUpdate:
+      allOf:
+        - $ref: "#/components/schemas/TaskFields"
+        - type: object
+          minProperties: 1
