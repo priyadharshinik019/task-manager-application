@@ -48,6 +48,14 @@ Daymark is a responsive task manager built to the supplied project specification
 
 The schema can also be created by the API on startup. `npm run db:setup --prefix backend` is useful when preparing a database before deployment.
 
+To create the pre-configured demo user required for a submission, set `DEMO_USER_NAME`, `DEMO_USER_EMAIL`, and `DEMO_USER_PASSWORD` in the ignored `backend/.env`, then run:
+
+```powershell
+npm run db:seed-demo --prefix backend
+```
+
+The script hashes the supplied password and does not print or overwrite demo credentials. Share the demo email/password in private submission notes, never in this public repository.
+
 ## Environment variables
 
 | Variable | Required | Purpose |
@@ -66,6 +74,7 @@ The schema can also be created by the API on startup. `npm run db:setup --prefix
 | `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Email | SMTP authentication and sender address |
 | `CRON_SECRET` | Reminder cron | Secret Vercel sends as a Bearer token to the reminder endpoint |
 | `VITE_API_BASE_URL` | No | Frontend API base; defaults to `/api` |
+| `DEMO_USER_NAME`, `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD` | Demo account | Credentials used by `db:seed-demo`; keep the password private |
 
 The API returns a clear notification status if SMTP is not configured, and image actions return a configuration error if Cloudinary credentials are absent. Never commit `.env` files or place server-side credentials in `VITE_*` variables.
 
@@ -105,7 +114,7 @@ flowchart LR
 2. Add the variables above in Vercel Project Settings. Set a PostgreSQL URL, a strong `JWT_SECRET`, Cloudinary values, and SMTP values. Set `APP_URL` and `CORS_ORIGIN` to the deployed frontend origin, and configure `CRON_SECRET`.
 3. Deploy. `vercel.json` builds the Vite client, routes `/api/*` to the Express function, and schedules the due-reminder endpoint hourly.
 4. The API initializes the PostgreSQL schema on its first serverless invocation. `npm run db:setup --prefix backend` can also be run against the production database before deployment.
-5. Register an account on the deployed application to create demo credentials. Share demo credentials outside the public source repository; do not store a real password in Git.
+5. Create a demo account using the seed command against the configured PostgreSQL database, then share its credentials outside the public source repository; do not store a real password in Git.
 
 Vercel Cron and serverless function limits depend on the selected Vercel plan. The scheduled reminder endpoint requires SMTP settings and a `CRON_SECRET`.
 
