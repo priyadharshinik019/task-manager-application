@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "db:test": "node config/test-database.js"
+    "db:test": "node config/test-database.js",
+    "test": "node --test test/application.test.js"
   },
   "dependencies": {
     "busboy": "^1.6.0",
