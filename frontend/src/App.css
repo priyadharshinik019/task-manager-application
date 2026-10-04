@@ -759,6 +759,185 @@
   font-size: 13px;
 }
 
+.auth-theme-control,
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.auth-theme-control {
+  margin-bottom: 24px;
+}
+
+.theme-toggle {
+  min-height: 38px;
+  border-color: var(--line);
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.theme-toggle:not(:disabled):hover {
+  border-color: #9baaba;
+  background: var(--subtle-bg);
+}
+
+:root[data-theme='dark'] .auth-page,
+:root[data-theme='dark'] .app-shell {
+  background: var(--page-bg);
+}
+
+:root[data-theme='dark'] .auth-panel,
+:root[data-theme='dark'] .topbar,
+:root[data-theme='dark'] .task-filters,
+:root[data-theme='dark'] .task-card,
+:root[data-theme='dark'] .task-form-card,
+:root[data-theme='dark'] .detail-modal,
+:root[data-theme='dark'] .empty-state--compact {
+  background: var(--paper);
+}
+
+:root[data-theme='dark'] .topbar {
+  border-color: var(--line);
+}
+
+:root[data-theme='dark'] .brand-mark--small {
+  color: #14231d;
+}
+
+:root[data-theme='dark'] .auth-card .eyebrow,
+:root[data-theme='dark'] .dashboard .eyebrow,
+:root[data-theme='dark'] .form-card-heading .eyebrow,
+:root[data-theme='dark'] .detail-heading .eyebrow {
+  color: #9bc9b4;
+}
+
+:root[data-theme='dark'] .field {
+  color: var(--text-secondary);
+}
+
+:root[data-theme='dark'] .field input,
+:root[data-theme='dark'] .field select,
+:root[data-theme='dark'] .field textarea {
+  border-color: var(--input-border);
+  color: var(--ink);
+  background: var(--input-bg);
+}
+
+:root[data-theme='dark'] .field input::placeholder,
+:root[data-theme='dark'] .field textarea::placeholder {
+  color: #8f9cac;
+}
+
+:root[data-theme='dark'] .button--secondary,
+:root[data-theme='dark'] .button--quiet,
+:root[data-theme='dark'] .icon-button,
+:root[data-theme='dark'] .theme-toggle {
+  border-color: var(--input-border);
+  color: var(--ink);
+  background: var(--surface-raised);
+}
+
+:root[data-theme='dark'] .button--secondary:not(:disabled):hover,
+:root[data-theme='dark'] .button--quiet:not(:disabled):hover,
+:root[data-theme='dark'] .icon-button:hover,
+:root[data-theme='dark'] .theme-toggle:not(:disabled):hover {
+  border-color: #64758a;
+  background: #2b3a4b;
+}
+
+:root[data-theme='dark'] .button--primary:not(:disabled):hover {
+  background: #367760;
+  color: #fff;
+}
+
+:root[data-theme='dark'] .button--primary {
+  background: #28604f;
+}
+
+:root[data-theme='dark'] .status-badge--pending {
+  color: #f3ca78;
+  background: #493a23;
+}
+
+:root[data-theme='dark'] .status-badge--in_progress {
+  color: #a9c9ff;
+  background: #263b57;
+}
+
+:root[data-theme='dark'] .status-badge--completed {
+  color: #9bd9b6;
+  background: #244437;
+}
+
+:root[data-theme='dark'] .task-description,
+:root[data-theme='dark'] .task-due,
+:root[data-theme='dark'] .detail-description,
+:root[data-theme='dark'] .detail-label {
+  color: var(--text-secondary);
+}
+
+:root[data-theme='dark'] .task-count,
+:root[data-theme='dark'] .task-due span,
+:root[data-theme='dark'] .optional-label,
+:root[data-theme='dark'] .field-hint {
+  color: var(--subtle-text);
+}
+
+:root[data-theme='dark'] .task-actions,
+:root[data-theme='dark'] .detail-actions {
+  border-color: var(--soft-line);
+}
+
+:root[data-theme='dark'] .empty-state {
+  border-color: #465668;
+  color: var(--muted);
+  background: rgba(28, 39, 52, 0.72);
+}
+
+:root[data-theme='dark'] .empty-icon {
+  color: #9bd9b6;
+  background: #244437;
+}
+
+:root[data-theme='dark'] .spinner {
+  border-color: #3b4a5b;
+  border-top-color: var(--accent);
+}
+
+:root[data-theme='dark'] .notice--success {
+  border-color: #345a47;
+  color: #a8dfbd;
+  background: #1d3329;
+}
+
+:root[data-theme='dark'] .notice--error {
+  border-color: #653f43;
+  color: #ffaaa5;
+  background: #382529;
+}
+
+:root[data-theme='dark'] .file-input {
+  border-color: #465668 !important;
+  background: var(--input-bg) !important;
+}
+
+:root[data-theme='dark'] .file-input::file-selector-button {
+  border-color: var(--input-border);
+  color: var(--ink);
+  background: var(--surface-raised);
+}
+
+:root[data-theme='dark'] .task-card-image,
+:root[data-theme='dark'] .detail-image {
+  background: #263443;
+}
+
+:root[data-theme='dark'] .modal-backdrop {
+  background: rgba(4, 9, 15, 0.72);
+}
+
 @media (max-width: 800px) {
   .auth-page {
     grid-template-columns: minmax(260px, 0.8fr) minmax(360px, 1fr);
@@ -837,6 +1016,16 @@
   .topbar {
     height: 62px;
     padding: 0 18px;
+  }
+
+  .topbar-actions {
+    gap: 7px;
+  }
+
+  .topbar-actions .button {
+    min-height: 36px;
+    padding: 8px 10px;
+    font-size: 11px;
   }
 
   .dashboard {

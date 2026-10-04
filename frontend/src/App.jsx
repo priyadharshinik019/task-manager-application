@@ -7,6 +7,7 @@ import './App.css'
 
 function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem('task-manager-token'))
+  const [theme, setTheme] = useState(() => localStorage.getItem('task-manager-theme') === 'dark' ? 'dark' : 'light')
   const [authMode, setAuthMode] = useState('login')
   const [authMessage, setAuthMessage] = useState('')
   const [tasks, setTasks] = useState([])
@@ -26,6 +27,11 @@ function App() {
     const matchesStatus = statusFilter === 'all' || task.status === statusFilter
     return matchesTitle && matchesStatus
   })
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('task-manager-theme', theme)
+  }, [theme])
 
   const signOut = useCallback(() => {
     sessionStorage.removeItem('task-manager-token')
@@ -193,6 +199,9 @@ function App() {
           <p className="intro-footnote">A simple space to plan your day.</p>
         </section>
         <section className="auth-panel">
+          <div className="auth-theme-control">
+            <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
+          </div>
           <AuthForm
             mode={authMode}
             onSubmit={handleAuthSubmit}
@@ -212,7 +221,10 @@ function App() {
           <span className="brand-mark brand-mark--small" aria-hidden="true">T</span>
           <span>Task Manager</span>
         </a>
-        <button className="button button--quiet" type="button" onClick={signOut}>Log out</button>
+        <div className="topbar-actions">
+          <ThemeToggle theme={theme} onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
+          <button className="button button--quiet" type="button" onClick={signOut}>Log out</button>
+        </div>
       </header>
 
       <section className="dashboard">
@@ -332,6 +344,22 @@ function App() {
         />
       )}
     </main>
+  )
+}
+
+function ThemeToggle({ theme, onToggle }) {
+  const isDark = theme === 'dark'
+
+  return (
+    <button
+      className="button theme-toggle"
+      type="button"
+      aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+      aria-pressed={isDark}
+      onClick={onToggle}
+    >
+      {isDark ? 'Light mode' : 'Dark mode'}
+    </button>
   )
 }
 

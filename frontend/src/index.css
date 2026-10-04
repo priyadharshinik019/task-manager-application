@@ -1,7 +1,7 @@
 :root {
   font-family: 'Segoe UI', Arial, sans-serif;
-  color: #1e293b;
-  background: #f7f8fa;
+  color: var(--body-text);
+  background: var(--page-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -17,6 +17,36 @@
   --accent-dark: #1d4f44;
   --accent-soft: #edf5f1;
   --danger: #b54747;
+  --page-bg: #f7f8fa;
+  --surface-raised: #fbfcfd;
+  --text-secondary: #364456;
+  --subtle-text: #677689;
+  --input-bg: #fff;
+  --input-border: #dfe5eb;
+  --subtle-bg: #f7f9fa;
+  --soft-line: #edf0f3;
+  --body-text: #1e293b;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --body-text: #e6edf4;
+  --ink: #e6edf4;
+  --muted: #a8b4c2;
+  --line: #354354;
+  --paper: #1c2734;
+  --accent: #83c2a8;
+  --accent-dark: #9bd2bb;
+  --accent-soft: #243a34;
+  --danger: #f08c87;
+  --page-bg: #111a24;
+  --surface-raised: #202d3b;
+  --text-secondary: #c2ccd7;
+  --subtle-text: #a8b4c2;
+  --input-bg: #151f2a;
+  --input-border: #465668;
+  --subtle-bg: #283646;
+  --soft-line: #354354;
 }
 
 * {
@@ -27,6 +57,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  color: var(--body-text);
+  background: var(--page-bg);
 }
 
 button,
