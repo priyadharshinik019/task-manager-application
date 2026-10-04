@@ -336,6 +336,27 @@
   font-weight: 700;
 }
 
+.task-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(190px, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 15px;
+  background: #fff;
+}
+
+.task-filters .field {
+  gap: 6px;
+}
+
+.task-filters .field input,
+.task-filters .field select {
+  min-height: 40px;
+  padding: 9px 11px;
+}
+
 .task-count {
   color: #7c8999;
   font-size: 12px;
@@ -840,6 +861,12 @@
 
   .task-section {
     margin-top: 28px;
+  }
+
+  .task-filters {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 13px;
   }
 
   .task-form-card {
