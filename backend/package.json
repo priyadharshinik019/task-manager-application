@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "Backend for the Task Manager Web Application",
-  "main": "server.js",
+  "main": "localServer.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node localServer.js",
     "db:test": "node config/test-database.js",
     "test": "node --test test/*.test.js"
   },

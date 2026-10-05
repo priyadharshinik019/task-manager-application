@@ -76,7 +76,7 @@ Task images can be uploaded as image files or supplied as HTTPS image URLs. The 
 │   ├── services/        # Authentication, tasks, email, images, reminders
 │   ├── test/            # Automated backend tests
 │   ├── validators/      # Request validation
-│   └── server.js         # Node.js HTTP server entry point
+│   └── localServer.js    # Local Node.js HTTP server entry point
 └── frontend/
     ├── src/
     │   ├── components/  # Authentication and task UI components
