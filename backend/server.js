@@ -4,10 +4,6 @@ if (require.main === module) {
   require('dotenv').config({ path: require('node:path').resolve(__dirname, '.env') });
 }
 
-const { handleAuthRoute } = require('./routes/authRoutes');
-const { handleTaskRoute } = require('./routes/taskRoutes');
-const { startReminderScheduler } = require('./services/reminderScheduler');
-
 const port = Number(process.env.PORT) || 3000;
 const allowedMethods = 'GET, POST, PUT, DELETE, OPTIONS';
 const allowedHeaders = 'Authorization, Content-Type';
@@ -49,15 +45,24 @@ function handleRequest(request, response) {
     const pathname = new URL(request.url, 'http://localhost').pathname;
 
     if (pathname === '/register' || pathname === '/login') {
+      const { handleAuthRoute } = require('./routes/authRoutes');
       await handleAuthRoute(request, response);
       return;
     }
 
-    if (await handleTaskRoute(request, response)) {
+    if (/^\/tasks\/?$/.test(pathname) || /^\/tasks\/[^/]+\/?$/.test(pathname)) {
+      const { handleTaskRoute } = require('./routes/taskRoutes');
+      await handleTaskRoute(request, response);
       return;
     }
 
-    await handleAuthRoute(request, response);
+    response.writeHead(404, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({
+      error: {
+        code: 'NOT_FOUND',
+        message: 'Route not found.'
+      }
+    }));
   }
 
   dispatchRequest().catch((error) => {
@@ -78,6 +83,7 @@ if (require.main === module) {
   const server = http.createServer(handleRequest);
   server.listen(port, () => {
     console.log(`Task Manager backend listening on port ${port}`);
+    const { startReminderScheduler } = require('./services/reminderScheduler');
     startReminderScheduler();
   });
 }
