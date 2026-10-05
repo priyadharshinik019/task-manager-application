@@ -190,7 +190,7 @@ The tests cover registration and login, protected task endpoints, task CRUD oper
 
 The frontend is a Vite application and can be deployed to Vercel by importing the GitHub repository and selecting `frontend` as the project root. Configure the frontend build command as `npm run build`, the output directory as `dist`, and set `VITE_API_BASE_URL` to the reachable backend URL in the Vercel project environment.
 
-The backend entry point is a long-running Node.js HTTP server. Deploy it to a Node.js hosting environment that supports this server process, configure its environment variables there, and set `FRONTEND_ORIGIN` to the deployed frontend origin. The repository does not contain a Vercel backend configuration, so this README does not claim that the backend is deployed to Vercel.
+The repository-root `vercel.json` explicitly builds `backend/api/[...path].mjs` as a Node.js function and routes `/api` requests to it, avoiding automatic server entrypoint detection. `backend/localServer.js` remains the local development server used by `npm start`. Configure the backend environment variables in the deployment environment and set `FRONTEND_ORIGIN` to the deployed frontend origin.
 
 ## Security considerations
 
