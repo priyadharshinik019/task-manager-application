@@ -7,11 +7,12 @@
   "scripts": {
     "start": "node server.js",
     "db:test": "node config/test-database.js",
-    "test": "node --test test/application.test.js"
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "busboy": "^1.6.0",
     "cloudinary": "^2.11.0",
+    "dotenv": "^18.0.5",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^10.0.14",
     "pg": "^8.23.1"

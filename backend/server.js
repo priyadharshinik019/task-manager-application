@@ -1,3 +1,5 @@
+require('dotenv').config({ path: require('node:path').resolve(__dirname, '.env') });
+
 const http = require('node:http');
 const { handleAuthRoute } = require('./routes/authRoutes');
 const { handleTaskRoute } = require('./routes/taskRoutes');

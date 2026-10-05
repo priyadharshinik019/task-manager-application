@@ -69,8 +69,9 @@ async function getTasksInReminderWindow() {
      FROM tasks
      INNER JOIN users ON users.id = tasks.owner_id
      WHERE tasks.due_date <= CURRENT_TIMESTAMP + $1::interval
-       AND tasks.due_date > CURRENT_TIMESTAMP + $2::interval`,
-    ['24 hours', '23 hours 59 minutes']
+       AND tasks.due_date > CURRENT_TIMESTAMP + $2::interval
+       AND tasks.status <> $3`,
+    ['24 hours', '23 hours 59 minutes', 'completed']
   );
 
   return result.rows;
