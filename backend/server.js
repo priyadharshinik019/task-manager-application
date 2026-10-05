@@ -9,7 +9,7 @@ const port = Number(process.env.PORT) || 3000;
 const allowedMethods = 'GET, POST, PUT, DELETE, OPTIONS';
 const allowedHeaders = 'Authorization, Content-Type';
 
-const server = http.createServer((request, response) => {
+function handleRequest(request, response) {
   const requestOrigin = request.headers.origin;
   const configuredOrigin = process.env.FRONTEND_ORIGIN;
   const originAllowed = Boolean(
@@ -69,9 +69,14 @@ const server = http.createServer((request, response) => {
       }));
     }
   });
-});
+}
 
-server.listen(port, () => {
-  console.log(`Task Manager backend listening on port ${port}`);
-  startReminderScheduler();
-});
+if (require.main === module) {
+  const server = http.createServer(handleRequest);
+  server.listen(port, () => {
+    console.log(`Task Manager backend listening on port ${port}`);
+    startReminderScheduler();
+  });
+}
+
+module.exports = { handleRequest };
