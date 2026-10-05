@@ -1,6 +1,9 @@
-require('dotenv').config({ path: require('node:path').resolve(__dirname, '.env') });
-
 const http = require('node:http');
+
+if (require.main === module) {
+  require('dotenv').config({ path: require('node:path').resolve(__dirname, '.env') });
+}
+
 const { handleAuthRoute } = require('./routes/authRoutes');
 const { handleTaskRoute } = require('./routes/taskRoutes');
 const { startReminderScheduler } = require('./services/reminderScheduler');
