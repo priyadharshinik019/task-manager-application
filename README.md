@@ -105,6 +105,7 @@ PGPORT=<your-postgres-port>
 PGDATABASE=<your-database-name>
 PGUSER=<your-database-user>
 PGPASSWORD=<your-database-password>
+PGSSLMODE=require
 
 JWT_SECRET=<your-jwt-secret>
 JWT_EXPIRES_IN=<your-token-expiration>
@@ -124,6 +125,8 @@ PORT=3000
 ```
 
 For Gmail SMTP, use `smtp.gmail.com` as `SMTP_HOST`, a supported Gmail SMTP port, and the account's SMTP-compatible app password as `SMTP_PASSWORD`. Keep all credentials in environment variables.
+
+For Neon, set `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD` to the corresponding values from the Neon connection details, and set `PGSSLMODE=require`. `PGDATABASE` must contain only the database name, not a connection string. For local PostgreSQL, leave `PGSSLMODE` unset to retain the non-SSL local connection behavior.
 
 Create `frontend/.env` with the API base URL. For local development:
 
@@ -148,6 +151,12 @@ npm start
 ```
 
 The server uses port `3000` by default; set `PORT` to override it. It loads configuration from `backend/.env`.
+
+To safely check the PostgreSQL connection (the test loads `backend/.env` and does not print credentials), run from the `backend` directory:
+
+```powershell
+npm run db:test
+```
 
 ### Run the frontend
 
@@ -188,9 +197,9 @@ The tests cover registration and login, protected task endpoints, task CRUD oper
 
 ## Vercel deployment
 
-The frontend is a Vite application and can be deployed to Vercel by importing the GitHub repository and selecting `frontend` as the project root. Configure the frontend build command as `npm run build`, the output directory as `dist`, and set `VITE_API_BASE_URL` to the reachable backend URL in the Vercel project environment.
+The frontend is a Vite application and can be deployed to Vercel by importing the GitHub repository and selecting `frontend` as the project root. Configure the frontend build command as `npm run build`, the output directory as `dist`, and set `VITE_API_BASE_URL` in the Vercel project environment to the backend's stable production API URL, including the `/api` path (for example, `https://<backend-project-domain>.vercel.app/api`). The client appends `/register`, `/login`, and `/tasks/` to this value. Do not use a deployment-specific URL; it can become stale when a new deployment is created.
 
-The repository-root `vercel.json` explicitly builds `backend/api/[...path].mjs` as a Node.js function and routes `/api` requests to it, avoiding automatic server entrypoint detection. `backend/localServer.js` remains the local development server used by `npm start`. Configure the backend environment variables in the deployment environment and set `FRONTEND_ORIGIN` to the deployed frontend origin.
+The repository-root `vercel.json` explicitly builds `backend/api/[...path].mjs` as a Node.js function and routes `/api` requests to it, avoiding automatic server entrypoint detection. `backend/localServer.js` remains the local development server used by `npm start`. Configure the backend environment variables in the deployment environment and set `FRONTEND_ORIGIN` to the deployed frontend origin exactly. The backend API deployment must be publicly reachable: Vercel Deployment Protection must not redirect browser API requests (including `OPTIONS` preflight requests) to SSO. CORS headers cannot resolve a hosting-level authentication redirect.
 
 ## Security considerations
 

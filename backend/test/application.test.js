@@ -96,6 +96,7 @@ stubModule('../services/cloudinaryService', cloudinaryServiceStub);
 
 const { handleAuthRoute } = require('../routes/authRoutes');
 const { handleTaskRoute } = require('../routes/taskRoutes');
+const { handleRequest } = require('../requestHandler');
 
 function createRequest(method, url, body, token) {
   const request = Readable.from(body === undefined ? [] : [JSON.stringify(body)]);
@@ -103,6 +104,27 @@ function createRequest(method, url, body, token) {
   request.url = url;
   request.headers = token ? { authorization: `Bearer ${token}` } : {};
   return request;
+}
+
+function callRequestHandler(method, headers = {}) {
+  const request = { method, url: '/register', headers };
+  const responseHeaders = {};
+  let statusCode;
+  let ended = false;
+  const response = {
+    setHeader(name, value) {
+      responseHeaders[name] = value;
+    },
+    writeHead(status) {
+      statusCode = status;
+    },
+    end() {
+      ended = true;
+    }
+  };
+
+  handleRequest(request, response);
+  return { statusCode, headers: responseHeaders, ended };
 }
 
 async function callHandler(handler, method, url, body, token) {
@@ -146,6 +168,57 @@ beforeEach(() => {
   tasks = [];
   nextUserId = 1;
   nextTaskId = 1;
+});
+
+test('CORS preflight succeeds for the configured frontend origin', () => {
+  const originalFrontendOrigin = process.env.FRONTEND_ORIGIN;
+  process.env.FRONTEND_ORIGIN = 'https://frontend.example.test';
+
+  try {
+    const response = callRequestHandler('OPTIONS', {
+      origin: 'https://frontend.example.test',
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'content-type'
+    });
+
+    assert.equal(response.statusCode, 204);
+    assert.equal(response.headers['Access-Control-Allow-Origin'], 'https://frontend.example.test');
+    assert.equal(response.headers['Access-Control-Allow-Methods'], 'GET, POST, PUT, DELETE, OPTIONS');
+    assert.equal(response.headers['Access-Control-Allow-Headers'], 'Authorization, Content-Type');
+    assert.equal(response.ended, true);
+  } finally {
+    if (originalFrontendOrigin === undefined) {
+      delete process.env.FRONTEND_ORIGIN;
+    } else {
+      process.env.FRONTEND_ORIGIN = originalFrontendOrigin;
+    }
+  }
+});
+
+test('CORS preflight rejects unconfigured origins and methods', () => {
+  const originalFrontendOrigin = process.env.FRONTEND_ORIGIN;
+  process.env.FRONTEND_ORIGIN = 'https://frontend.example.test';
+
+  try {
+    const wrongOrigin = callRequestHandler('OPTIONS', {
+      origin: 'https://other.example.test',
+      'access-control-request-method': 'POST'
+    });
+    assert.equal(wrongOrigin.statusCode, 403);
+    assert.equal(wrongOrigin.headers['Access-Control-Allow-Origin'], undefined);
+
+    const wrongMethod = callRequestHandler('OPTIONS', {
+      origin: 'https://frontend.example.test',
+      'access-control-request-method': 'PATCH'
+    });
+    assert.equal(wrongMethod.statusCode, 403);
+  } finally {
+    if (originalFrontendOrigin === undefined) {
+      delete process.env.FRONTEND_ORIGIN;
+    } else {
+      process.env.FRONTEND_ORIGIN = originalFrontendOrigin;
+    }
+  }
 });
 
 test('registration succeeds without returning password or password hash', async () => {
