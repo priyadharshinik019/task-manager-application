@@ -7,23 +7,55 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function logResendFailure(error, responseStatus) {
+  let message = typeof error?.message === 'string'
+    ? error.message
+    : 'Resend request failed.';
+
+  for (const [name, value] of Object.entries(process.env)) {
+    if (value && /(PASSWORD|SECRET|API_KEY|TOKEN)/i.test(name)) {
+      message = message.split(value).join('[REDACTED]');
+    }
+  }
+
+  const status = responseStatus ?? error?.status ?? error?.statusCode;
+  const details = {
+    name: typeof error?.name === 'string' ? error.name : 'Error',
+    message
+  };
+
+  if (Number.isFinite(status)) {
+    details.status = status;
+  }
+
+  console.error(details);
+}
+
 async function sendHtmlEmail({ to, subject, html, text }) {
   const { RESEND_API_KEY: apiKey, EMAIL_FROM: from } = process.env;
   if (!apiKey || !from) {
     throw new Error('Email service environment configuration is incomplete.');
   }
 
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ from, to, subject, html, text })
-  });
+  let response;
+  try {
+    response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ from, to, subject, html, text })
+    });
+  } catch (error) {
+    logResendFailure(error);
+    throw error;
+  }
 
   if (!response.ok) {
-    throw new Error(`Resend email request failed with status ${response.status}.`);
+    const error = new Error(`Resend email request failed with status ${response.status}.`);
+    logResendFailure(error, response.status);
+    throw error;
   }
 }
 

@@ -73,6 +73,9 @@ test('due-date reminder uses Resend with the existing escaped template', async (
 
 test('Resend failures do not include response details or the API key', async () => {
   configureTestEmail();
+  const logs = [];
+  const originalConsoleError = console.error;
+  console.error = (...args) => logs.push(args);
   global.fetch = async () => ({
     ok: false,
     status: 401,
@@ -81,12 +84,55 @@ test('Resend failures do not include response details or the API key', async () 
     }
   });
 
-  await assert.rejects(
-    sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
-    (error) => {
-      assert.equal(error.message, 'Resend email request failed with status 401.');
-      assert.equal(error.message.includes(testApiKey), false);
-      return true;
-    }
-  );
+  try {
+    await assert.rejects(
+      sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
+      (error) => {
+        assert.equal(error.message, 'Resend email request failed with status 401.');
+        assert.equal(error.message.includes(testApiKey), false);
+        return true;
+      }
+    );
+
+    assert.equal(logs.length, 1);
+    assert.deepEqual(logs[0][0], {
+      name: 'Error',
+      message: 'Resend email request failed with status 401.',
+      status: 401
+    });
+    assert.equal(JSON.stringify(logs).includes(testApiKey), false);
+    assert.deepEqual(Object.keys(logs[0][0]).sort(), ['message', 'name', 'status']);
+  } finally {
+    console.error = originalConsoleError;
+  }
+});
+
+test('network failure diagnostics redact a key echoed in the error message', async () => {
+  configureTestEmail();
+  const logs = [];
+  const originalConsoleError = console.error;
+  console.error = (...args) => logs.push(args);
+  global.fetch = async () => {
+    const error = new TypeError(`Request failed using ${testApiKey}`);
+    error.statusCode = 503;
+    throw error;
+  };
+
+  try {
+    await assert.rejects(
+      sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
+      TypeError
+    );
+
+    assert.equal(logs.length, 1);
+    assert.deepEqual(logs[0][0], {
+      name: 'TypeError',
+      message: 'Request failed using [REDACTED]',
+      status: 503
+    });
+    assert.equal(JSON.stringify(logs).includes(testApiKey), false);
+    assert.deepEqual(Object.keys(logs[0][0]).sort(), ['message', 'name', 'status']);
+  } finally {
+    console.error = originalConsoleError;
+  }
 });
