@@ -195,6 +195,37 @@ test('CORS preflight succeeds for the configured frontend origin', () => {
   }
 });
 
+test('CORS preflight succeeds for production and local frontend origins', () => {
+  const originalFrontendOrigin = process.env.FRONTEND_ORIGIN;
+  delete process.env.FRONTEND_ORIGIN;
+
+  try {
+    for (const origin of [
+      'https://task-manager-application-mwkw.vercel.app',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173'
+    ]) {
+      const response = callRequestHandler('OPTIONS', {
+        origin,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization,content-type'
+      });
+
+      assert.equal(response.statusCode, 204);
+      assert.equal(response.headers['Access-Control-Allow-Origin'], origin);
+      assert.equal(response.headers['Access-Control-Allow-Methods'], 'GET, POST, PUT, DELETE, OPTIONS');
+      assert.equal(response.headers['Access-Control-Allow-Headers'], 'Authorization, Content-Type');
+      assert.equal(response.ended, true);
+    }
+  } finally {
+    if (originalFrontendOrigin === undefined) {
+      delete process.env.FRONTEND_ORIGIN;
+    } else {
+      process.env.FRONTEND_ORIGIN = originalFrontendOrigin;
+    }
+  }
+});
+
 test('CORS preflight rejects unconfigured origins and methods', () => {
   const originalFrontendOrigin = process.env.FRONTEND_ORIGIN;
   process.env.FRONTEND_ORIGIN = 'https://frontend.example.test';

@@ -1,18 +1,22 @@
 const allowedMethods = 'GET, POST, PUT, DELETE, OPTIONS';
 const allowedHeaders = 'Authorization, Content-Type';
+const allowedFrontendOrigins = new Set([
+  'https://task-manager-application-mwkw.vercel.app',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
+]);
 
 function handleRequest(request, response) {
   const requestOrigin = request.headers.origin;
   const configuredOrigin = process.env.FRONTEND_ORIGIN;
-  const originAllowed = Boolean(
-    requestOrigin &&
-    configuredOrigin &&
+  const originAllowed = Boolean(requestOrigin) && (
+    allowedFrontendOrigins.has(requestOrigin) ||
     requestOrigin === configuredOrigin
   );
 
   response.setHeader('Vary', 'Origin');
   if (originAllowed) {
-    response.setHeader('Access-Control-Allow-Origin', configuredOrigin);
+    response.setHeader('Access-Control-Allow-Origin', requestOrigin);
   }
 
   if (request.method === 'OPTIONS') {
