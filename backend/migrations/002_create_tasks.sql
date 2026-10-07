@@ -6,6 +6,7 @@ CREATE TABLE tasks (
         CHECK (status IN ('pending', 'in_progress', 'completed')),
     due_date DATE,
     image_url TEXT,
+    image_public_id TEXT,
     owner_id BIGINT NOT NULL
         REFERENCES users(id) ON DELETE CASCADE
 );
