@@ -66,7 +66,12 @@ const taskModelStub = {
 };
 
 const emailServiceStub = {
-  async sendWelcomeEmail() {},
+  failWelcomeEmail: false,
+  async sendWelcomeEmail() {
+    if (emailServiceStub.failWelcomeEmail) {
+      throw new Error('Email delivery failed.');
+    }
+  },
   async sendDueDateReminderEmail() {}
 };
 
@@ -168,6 +173,7 @@ beforeEach(() => {
   tasks = [];
   nextUserId = 1;
   nextTaskId = 1;
+  emailServiceStub.failWelcomeEmail = false;
 });
 
 test('CORS preflight succeeds for the configured frontend origin', () => {
@@ -262,6 +268,21 @@ test('registration succeeds without returning password or password hash', async 
     email: 'alice@example.test'
   });
   assert.equal(JSON.stringify(response.body).includes('password'), false);
+});
+
+test('registration succeeds when welcome email delivery fails', async () => {
+  emailServiceStub.failWelcomeEmail = true;
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    const response = await register('Email Failure', 'email-failure@example.test');
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(response.body.user.email, 'email-failure@example.test');
+  } finally {
+    console.error = originalConsoleError;
+  }
 });
 
 test('duplicate email registration is rejected', async () => {

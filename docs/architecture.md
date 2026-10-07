@@ -10,7 +10,7 @@ flowchart TD
     Database[(PostgreSQL Database)]
     Cloudinary[Cloudinary<br/>Task image storage]
     Scheduler[Reminder Scheduler<br/>Checks every 15 seconds]
-    Email[Configured SMTP Server<br/>Gmail SMTP when configured]
+    Email[Resend HTTPS Email API]
 
     User --> Frontend
     Frontend -->|HTTP API requests| API
@@ -36,4 +36,4 @@ flowchart TD
 - **PostgreSQL:** Stores user and task records. The backend accesses it through parameterized queries.
 - **Cloudinary:** Receives task image uploads, including uploaded image files and supported HTTPS image URLs. The task stores the resulting secure image URL.
 - **Reminder scheduler:** Starts after the backend begins listening and checks every 15 seconds for tasks in the approximately 24-hour reminder window. Completed tasks are excluded; duplicate suppression is held in process memory and resets when the server restarts.
-- **Configured SMTP server:** The backend sends welcome email after registration and due-date reminder email through its configured SMTP transport. Gmail SMTP can be used by configuring the SMTP host and credentials accordingly; the implementation does not hard-code Gmail.
+- **Resend email API:** The backend sends welcome email after registration and due-date reminder email through Resend's HTTPS API, using a server-side API key and a sender address supported by the configured Resend account.

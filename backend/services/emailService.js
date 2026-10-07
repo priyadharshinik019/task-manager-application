@@ -1,5 +1,3 @@
-const nodemailer = require('nodemailer');
-
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -9,42 +7,24 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function createTransport() {
-  const {
-    SMTP_HOST: host,
-    SMTP_PORT: portText,
-    SMTP_USER: user,
-    SMTP_PASSWORD: password,
-    EMAIL_FROM: from
-  } = process.env;
-  const port = Number(portText);
-
-  if (
-    !host ||
-    !Number.isInteger(port) ||
-    port < 1 ||
-    port > 65535 ||
-    !user ||
-    !password ||
-    !from
-  ) {
+async function sendHtmlEmail({ to, subject, html, text }) {
+  const { RESEND_API_KEY: apiKey, EMAIL_FROM: from } = process.env;
+  if (!apiKey || !from) {
     throw new Error('Email service environment configuration is incomplete.');
   }
 
-  return {
-    from,
-    transporter: nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass: password }
-    })
-  };
-}
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ from, to, subject, html, text })
+  });
 
-async function sendHtmlEmail({ to, subject, html, text }) {
-  const { from, transporter } = createTransport();
-  await transporter.sendMail({ from, to, subject, html, text });
+  if (!response.ok) {
+    throw new Error(`Resend email request failed with status ${response.status}.`);
+  }
 }
 
 async function sendWelcomeEmail(user) {
