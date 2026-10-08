@@ -76,7 +76,7 @@ async function handleAuthRoute(request, response) {
     }
 
     const user = await registerUser(validation.value);
-    void sendWelcomeEmail(user).catch(() => {
+    void sendWelcomeEmail({ name: user.name, email: user.email }).catch(() => {
       console.error('Welcome email could not be sent.');
     });
     sendJson(response, 201, { user });

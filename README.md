@@ -11,7 +11,7 @@ A full-stack task management application for creating and organizing personal ta
 - Upload a task image or provide an HTTPS image URL. Images are stored in Cloudinary.
 - Search tasks by title and filter by status.
 - Toggle between light and dark themes; the selected theme is saved in browser local storage.
-- Send welcome and due-date reminder emails using the Resend email API.
+- Send welcome and due-date reminder emails using Gmail SMTP.
 
 ## Technology stack
 
@@ -20,7 +20,7 @@ A full-stack task management application for creating and organizing personal ta
 - **Database:** PostgreSQL, accessed through `pg`
 - **Authentication:** JSON Web Tokens (JWT)
 - **Image storage:** Cloudinary
-- **Email:** Resend HTTPS API
+- **Email:** Gmail SMTP via Nodemailer
 - **Frontend deployment:** Vercel
 
 ## Authentication and authorization
@@ -57,7 +57,7 @@ The interface has light and dark themes. The selected theme is stored in browser
 
 The backend scheduler checks periodically for tasks in a narrow window approximately 24 hours before their due date and sends a reminder email for tasks whose status is not `completed`. Duplicate reminders for a task and due date are suppressed in the running server process, but this tracking is in memory and resets when the server restarts.
 
-Welcome and reminder emails use the Resend HTTPS API. Configure `RESEND_API_KEY` and set `EMAIL_FROM` to a sender address supported by the Resend account, such as an address on a verified domain.
+Welcome and reminder emails use Gmail SMTP through Nodemailer. Configure `SMTP_HOST` as `smtp.gmail.com`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (a Gmail App Password), and `EMAIL_FROM` in the backend environment.
 
 ### Cloudinary images
 
@@ -93,7 +93,7 @@ Task images can be uploaded as image files or supplied as HTTPS image URLs. The 
 - Node.js and npm
 - PostgreSQL
 - Cloudinary credentials for image operations
-- A Resend API key and a sender address supported by the Resend account
+- Gmail SMTP credentials, including a Gmail App Password
 
 ### Configure environment variables
 
@@ -114,7 +114,10 @@ CLOUDINARY_CLOUD_NAME=<your-cloudinary-cloud-name>
 CLOUDINARY_API_KEY=<your-cloudinary-api-key>
 CLOUDINARY_API_SECRET=<your-cloudinary-api-secret>
 
-RESEND_API_KEY=<your-resend-api-key>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=<your-gmail-address>
+SMTP_PASSWORD=<your-gmail-app-password>
 EMAIL_FROM=<your-from-address>
 
 FRONTEND_ORIGIN=<your-frontend-origin>
@@ -203,7 +206,7 @@ The repository-root `vercel.json` explicitly builds `backend/api/[...path].mjs` 
 - Use HTTPS for deployed frontend, backend, and externally supplied image URLs.
 - Restrict `FRONTEND_ORIGIN` to the intended frontend origin.
 - Protect task endpoints with the JWT Bearer token and do not expose tokens or credentials in logs or public client-side configuration. Only the frontend API base URL should use the `VITE_` prefix.
-- Store the Resend API key only in backend environment variables; never expose it in frontend configuration.
+- Keep SMTP credentials only in backend environment variables; never expose them in frontend configuration.
 
 ## GitHub repository
 

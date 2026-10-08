@@ -9,6 +9,7 @@ const users = [];
 let tasks = [];
 let nextUserId = 1;
 let nextTaskId = 1;
+const welcomeEmailRecipients = [];
 
 const poolStub = {
   async query(sql, values) {
@@ -67,7 +68,8 @@ const taskModelStub = {
 
 const emailServiceStub = {
   failWelcomeEmail: false,
-  async sendWelcomeEmail() {
+  async sendWelcomeEmail(user) {
+    welcomeEmailRecipients.push(user.email);
     if (emailServiceStub.failWelcomeEmail) {
       throw new Error('Email delivery failed.');
     }
@@ -173,6 +175,7 @@ beforeEach(() => {
   tasks = [];
   nextUserId = 1;
   nextTaskId = 1;
+  welcomeEmailRecipients.length = 0;
   emailServiceStub.failWelcomeEmail = false;
 });
 
@@ -268,6 +271,16 @@ test('registration succeeds without returning password or password hash', async 
     email: 'alice@example.test'
   });
   assert.equal(JSON.stringify(response.body).includes('password'), false);
+});
+
+test('welcome emails go only to the email address used for each registration', async () => {
+  await register('Alice Example', 'alice@example.test');
+  await register('Bob Example', 'bob@example.test');
+
+  assert.deepEqual(welcomeEmailRecipients, [
+    'alice@example.test',
+    'bob@example.test'
+  ]);
 });
 
 test('registration succeeds when welcome email delivery fails', async () => {

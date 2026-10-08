@@ -1,3 +1,5 @@
+const nodemailer = require('nodemailer');
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -7,55 +9,41 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function logResendFailure(error, responseStatus) {
-  let message = typeof error?.message === 'string'
-    ? error.message
-    : 'Resend request failed.';
-
-  for (const [name, value] of Object.entries(process.env)) {
-    if (value && /(PASSWORD|SECRET|API_KEY|TOKEN)/i.test(name)) {
-      message = message.split(value).join('[REDACTED]');
-    }
-  }
-
-  const status = responseStatus ?? error?.status ?? error?.statusCode;
-  const details = {
-    name: typeof error?.name === 'string' ? error.name : 'Error',
-    message
-  };
-
-  if (Number.isFinite(status)) {
-    details.status = status;
-  }
-
-  console.error(details);
-}
-
 async function sendHtmlEmail({ to, subject, html, text }) {
-  const { RESEND_API_KEY: apiKey, EMAIL_FROM: from } = process.env;
-  if (!apiKey || !from) {
+  const {
+    SMTP_HOST: host,
+    SMTP_PORT: portValue,
+    SMTP_USER: user,
+    SMTP_PASSWORD: password,
+    EMAIL_FROM: from
+  } = process.env;
+  const port = Number(portValue);
+
+  if (
+    !host ||
+    !portValue ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65535 ||
+    !user ||
+    !password ||
+    !from
+  ) {
     throw new Error('Email service environment configuration is incomplete.');
   }
 
-  let response;
-  try {
-    response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ from, to, subject, html, text })
-    });
-  } catch (error) {
-    logResendFailure(error);
-    throw error;
-  }
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass: password }
+  });
 
-  if (!response.ok) {
-    const error = new Error(`Resend email request failed with status ${response.status}.`);
-    logResendFailure(error, response.status);
-    throw error;
+  try {
+    await transporter.sendMail({ from, to, subject, html, text });
+  } catch {
+    console.error('SMTP email delivery failed.');
+    throw new Error('SMTP email delivery failed.');
   }
 }
 

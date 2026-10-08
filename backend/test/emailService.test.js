@@ -1,62 +1,78 @@
 const assert = require('node:assert/strict');
 const { afterEach, test } = require('node:test');
-const { randomUUID } = require('node:crypto');
+const nodemailer = require('nodemailer');
 
 const { sendDueDateReminderEmail, sendWelcomeEmail } = require('../services/emailService');
 
-const originalFetch = global.fetch;
-const originalApiKey = process.env.RESEND_API_KEY;
-const originalEmailFrom = process.env.EMAIL_FROM;
-const testApiKey = `unit-test-${randomUUID()}`;
+const originalCreateTransport = nodemailer.createTransport;
+const smtpEnvironmentNames = [
+  'SMTP_HOST',
+  'SMTP_PORT',
+  'SMTP_USER',
+  'SMTP_PASSWORD',
+  'EMAIL_FROM'
+];
+const originalEnvironment = Object.fromEntries(
+  smtpEnvironmentNames.map((name) => [name, process.env[name]])
+);
+const testSmtpPassword = 'test-only-app-password';
 
 afterEach(() => {
-  global.fetch = originalFetch;
-  if (originalApiKey === undefined) {
-    delete process.env.RESEND_API_KEY;
-  } else {
-    process.env.RESEND_API_KEY = originalApiKey;
-  }
-  if (originalEmailFrom === undefined) {
-    delete process.env.EMAIL_FROM;
-  } else {
-    process.env.EMAIL_FROM = originalEmailFrom;
+  nodemailer.createTransport = originalCreateTransport;
+  for (const name of smtpEnvironmentNames) {
+    if (originalEnvironment[name] === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = originalEnvironment[name];
+    }
   }
 });
 
 function configureTestEmail() {
-  process.env.RESEND_API_KEY = testApiKey;
-  process.env.EMAIL_FROM = 'Task Manager <no-reply@example.test>';
+  process.env.SMTP_HOST = 'smtp.gmail.com';
+  process.env.SMTP_PORT = '587';
+  process.env.SMTP_USER = 'taskflow@example.test';
+  process.env.SMTP_PASSWORD = testSmtpPassword;
+  process.env.EMAIL_FROM = 'Task Manager <taskflow@example.test>';
 }
 
-test('welcome email uses Resend with the escaped existing template', async () => {
-  configureTestEmail();
-  let request;
-  global.fetch = async (url, options) => {
-    request = { url, ...options };
-    return { ok: true, status: 200 };
+function mockTransport(onSendMail) {
+  let transportOptions;
+  nodemailer.createTransport = (options) => {
+    transportOptions = options;
+    return { sendMail: onSendMail };
   };
+  return () => transportOptions;
+}
+
+test('welcome email uses Gmail SMTP and the escaped existing template', async () => {
+  configureTestEmail();
+  let message;
+  const getTransportOptions = mockTransport(async (options) => {
+    message = options;
+  });
 
   await sendWelcomeEmail({ name: '<Alice & Bob>', email: 'alice@example.test' });
 
-  assert.equal(request.url, 'https://api.resend.com/emails');
-  assert.equal(request.method, 'POST');
-  assert.equal(request.headers.Authorization, `Bearer ${testApiKey}`);
-  assert.equal(request.headers['Content-Type'], 'application/json');
-  const message = JSON.parse(request.body);
-  assert.equal(message.from, 'Task Manager <no-reply@example.test>');
+  assert.deepEqual(getTransportOptions(), {
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: { user: 'taskflow@example.test', pass: testSmtpPassword }
+  });
+  assert.equal(message.from, 'Task Manager <taskflow@example.test>');
   assert.equal(message.to, 'alice@example.test');
   assert.equal(message.subject, 'Welcome to Task Manager');
   assert.match(message.html, /Welcome, &lt;Alice &amp; Bob&gt;/);
   assert.equal(message.text, 'Welcome, <Alice & Bob>. Your Task Manager account has been created successfully.');
 });
 
-test('due-date reminder uses Resend with the existing escaped template', async () => {
+test('due-date reminder uses Gmail SMTP with the existing escaped template', async () => {
   configureTestEmail();
   let message;
-  global.fetch = async (_url, options) => {
-    message = JSON.parse(options.body);
-    return { ok: true, status: 200 };
-  };
+  mockTransport(async (options) => {
+    message = options;
+  });
 
   await sendDueDateReminderEmail({
     email: 'alice@example.test',
@@ -71,68 +87,50 @@ test('due-date reminder uses Resend with the existing escaped template', async (
   assert.equal(message.text, 'Reminder: "<Review & finish>" is due on 2030-05-06 00:00:00 UTC.');
 });
 
-test('Resend failures do not include response details or the API key', async () => {
+test('SMTP delivery failures do not log SMTP credentials', async () => {
   configureTestEmail();
   const logs = [];
   const originalConsoleError = console.error;
   console.error = (...args) => logs.push(args);
-  global.fetch = async () => ({
-    ok: false,
-    status: 401,
-    async text() {
-      return `Rejected ${testApiKey}`;
-    }
+  mockTransport(async () => {
+    throw new Error(`SMTP rejected password ${testSmtpPassword}`);
   });
 
   try {
     await assert.rejects(
       sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
-      (error) => {
-        assert.equal(error.message, 'Resend email request failed with status 401.');
-        assert.equal(error.message.includes(testApiKey), false);
-        return true;
-      }
+      { message: 'SMTP email delivery failed.' }
     );
 
-    assert.equal(logs.length, 1);
-    assert.deepEqual(logs[0][0], {
-      name: 'Error',
-      message: 'Resend email request failed with status 401.',
-      status: 401
-    });
-    assert.equal(JSON.stringify(logs).includes(testApiKey), false);
-    assert.deepEqual(Object.keys(logs[0][0]).sort(), ['message', 'name', 'status']);
+    assert.deepEqual(logs, [['SMTP email delivery failed.']]);
+    assert.equal(JSON.stringify(logs).includes(testSmtpPassword), false);
   } finally {
     console.error = originalConsoleError;
   }
 });
 
-test('network failure diagnostics redact a key echoed in the error message', async () => {
+test('SMTP port 465 enables secure transport', async () => {
   configureTestEmail();
-  const logs = [];
-  const originalConsoleError = console.error;
-  console.error = (...args) => logs.push(args);
-  global.fetch = async () => {
-    const error = new TypeError(`Request failed using ${testApiKey}`);
-    error.statusCode = 503;
-    throw error;
+  process.env.SMTP_PORT = '465';
+  const getTransportOptions = mockTransport(async () => {});
+
+  await sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' });
+
+  assert.equal(getTransportOptions().secure, true);
+});
+
+test('email delivery rejects incomplete SMTP configuration without creating a transporter', async () => {
+  configureTestEmail();
+  delete process.env.SMTP_PASSWORD;
+  let transporterCreated = false;
+  nodemailer.createTransport = () => {
+    transporterCreated = true;
+    throw new Error('Transporter should not be created.');
   };
 
-  try {
-    await assert.rejects(
-      sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
-      TypeError
-    );
-
-    assert.equal(logs.length, 1);
-    assert.deepEqual(logs[0][0], {
-      name: 'TypeError',
-      message: 'Request failed using [REDACTED]',
-      status: 503
-    });
-    assert.equal(JSON.stringify(logs).includes(testApiKey), false);
-    assert.deepEqual(Object.keys(logs[0][0]).sort(), ['message', 'name', 'status']);
-  } finally {
-    console.error = originalConsoleError;
-  }
+  await assert.rejects(
+    sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
+    { message: 'Email service environment configuration is incomplete.' }
+  );
+  assert.equal(transporterCreated, false);
 });
