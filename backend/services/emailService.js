@@ -1,5 +1,3 @@
-const nodemailer = require('nodemailer');
-
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -10,40 +8,24 @@ function escapeHtml(value) {
 }
 
 async function sendHtmlEmail({ to, subject, html, text }) {
-  const {
-    SMTP_HOST: host,
-    SMTP_PORT: portValue,
-    SMTP_USER: user,
-    SMTP_PASSWORD: password,
-    EMAIL_FROM: from
-  } = process.env;
-  const port = Number(portValue);
+  const { RESEND_API_KEY: apiKey, EMAIL_FROM: from } = process.env;
 
-  if (
-    !host ||
-    !portValue ||
-    !Number.isInteger(port) ||
-    port < 1 ||
-    port > 65535 ||
-    !user ||
-    !password ||
-    !from
-  ) {
+  if (!apiKey || !from) {
     throw new Error('Email service environment configuration is incomplete.');
   }
 
-  const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass: password }
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ from, to, subject, html, text })
   });
 
-  try {
-    await transporter.sendMail({ from, to, subject, html, text });
-  } catch {
-    console.error('SMTP email delivery failed.');
-    throw new Error('SMTP email delivery failed.');
+  if (!response.ok) {
+    console.error('Resend email delivery failed with HTTP status:', response.status);
+    throw new Error('Email delivery failed.');
   }
 }
 

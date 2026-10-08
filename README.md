@@ -57,7 +57,7 @@ The interface has light and dark themes. The selected theme is stored in browser
 
 The backend scheduler checks periodically for tasks in a narrow window approximately 24 hours before their due date and sends a reminder email for tasks whose status is not `completed`. Duplicate reminders for a task and due date are suppressed in the running server process, but this tracking is in memory and resets when the server restarts.
 
-Welcome and reminder emails use Gmail SMTP through Nodemailer. Configure `SMTP_HOST` as `smtp.gmail.com`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (a Gmail App Password), and `EMAIL_FROM` in the backend environment.
+Welcome and reminder emails are sent through the Resend HTTPS API. Configure `RESEND_API_KEY` and `EMAIL_FROM` in the backend environment.
 
 ### Cloudinary images
 
@@ -114,10 +114,7 @@ CLOUDINARY_CLOUD_NAME=<your-cloudinary-cloud-name>
 CLOUDINARY_API_KEY=<your-cloudinary-api-key>
 CLOUDINARY_API_SECRET=<your-cloudinary-api-secret>
 
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=<your-gmail-address>
-SMTP_PASSWORD=<your-gmail-app-password>
+RESEND_API_KEY=<your-resend-api-key>
 EMAIL_FROM=<your-from-address>
 
 FRONTEND_ORIGIN=<your-frontend-origin>
