@@ -1,23 +1,31 @@
+
 const assert = require('node:assert/strict');
 const { afterEach, test } = require('node:test');
 
-const { sendDueDateReminderEmail, sendWelcomeEmail } = require('../services/emailService');
+const {
+  sendDueDateReminderEmail,
+  sendWelcomeEmail
+} = require('../services/emailService');
 
 const originalFetch = global.fetch;
-const emailEnvironmentNames = [
+const environmentNames = [
+  'BREVO_API_KEY',
   'RESEND_API_KEY',
   'EMAIL_FROM',
   'JWT_SECRET',
   'API_KEY'
 ];
+
 const originalEnvironment = Object.fromEntries(
-  emailEnvironmentNames.map((name) => [name, process.env[name]])
+  environmentNames.map((name) => [name, process.env[name]])
 );
-const testResendApiKey = 'test-only-resend-api-key';
+
+const testBrevoApiKey = 'test-only-brevo-api-key';
 
 afterEach(() => {
   global.fetch = originalFetch;
-  for (const name of emailEnvironmentNames) {
+
+  for (const name of environmentNames) {
     if (originalEnvironment[name] === undefined) {
       delete process.env[name];
     } else {
@@ -27,42 +35,58 @@ afterEach(() => {
 });
 
 function configureTestEmail() {
-  process.env.RESEND_API_KEY = testResendApiKey;
+  process.env.BREVO_API_KEY = testBrevoApiKey;
   process.env.EMAIL_FROM = 'Task Manager <taskflow@example.test>';
 }
 
 function mockFetch(response) {
   let request;
+
   global.fetch = async (url, options) => {
     request = { url, options };
     return response;
   };
+
   return () => request;
 }
 
-test('welcome email uses Resend and sends to the new user with the existing template', async () => {
+test('welcome email uses Brevo and sends to the new user', async () => {
   configureTestEmail();
   const getRequest = mockFetch({ ok: true });
 
-  await sendWelcomeEmail({ name: '<Alice & Bob>', email: 'alice@example.test' });
-
-  const request = getRequest();
-  assert.equal(request.url, 'https://api.resend.com/emails');
-  assert.equal(request.options.method, 'POST');
-  assert.deepEqual(request.options.headers, {
-    Authorization: `Bearer ${testResendApiKey}`,
-    'Content-Type': 'application/json'
+  await sendWelcomeEmail({
+    name: '<Alice & Bob>',
+    email: 'alice@example.test'
   });
 
+  const request = getRequest();
+
+  assert.equal(
+    request.url,
+    'https://api.brevo.com/v3/smtp/email'
+  );
+  assert.equal(request.options.method, 'POST');
+  assert.equal(
+    request.options.headers['api-key'],
+    testBrevoApiKey
+  );
+
   const message = JSON.parse(request.options.body);
-  assert.equal(message.from, 'Task Manager <taskflow@example.test>');
-  assert.equal(message.to, 'alice@example.test');
+
+  assert.deepEqual(message.sender, {
+    name: 'Task Manager',
+    email: 'taskflow@example.test'
+  });
+  assert.deepEqual(message.to, [{ email: 'alice@example.test' }]);
   assert.equal(message.subject, 'Welcome to Task Manager');
-  assert.match(message.html, /Welcome, &lt;Alice &amp; Bob&gt;/);
-  assert.equal(message.text, 'Welcome, <Alice & Bob>. Your Task Manager account has been created successfully.');
+  assert.match(message.htmlContent, /Welcome, &lt;Alice &amp; Bob&gt;/);
+  assert.equal(
+    message.textContent,
+    'Welcome, <Alice & Bob>. Your Task Manager account has been created successfully.'
+  );
 });
 
-test('due-date reminder uses Resend with the existing escaped template', async () => {
+test('due-date reminder uses Brevo with the escaped template', async () => {
   configureTestEmail();
   const getRequest = mockFetch({ ok: true });
 
@@ -73,23 +97,41 @@ test('due-date reminder uses Resend with the existing escaped template', async (
   });
 
   const request = getRequest();
-  assert.equal(request.url, 'https://api.resend.com/emails');
+
+  assert.equal(
+    request.url,
+    'https://api.brevo.com/v3/smtp/email'
+  );
+
   const message = JSON.parse(request.options.body);
-  assert.equal(message.to, 'alice@example.test');
+
+  assert.deepEqual(message.to, [{ email: 'alice@example.test' }]);
   assert.equal(message.subject, 'Task due tomorrow');
-  assert.match(message.html, /&lt;Review &amp; finish&gt;/);
-  assert.match(message.html, /2030-05-06 00:00:00 UTC/);
-  assert.equal(message.text, 'Reminder: "<Review & finish>" is due on 2030-05-06 00:00:00 UTC.');
+  assert.match(message.htmlContent, /&lt;Review &amp; finish&gt;/);
+  assert.match(message.htmlContent, /2030-05-06 00:00:00 UTC/);
+  assert.equal(
+    message.textContent,
+    'Reminder: "<Review & finish>" is due on 2030-05-06 00:00:00 UTC.'
+  );
 });
 
-test('Resend failures log only the HTTP status and do not expose secrets', async () => {
+test('Brevo failures do not expose secrets in logs', async () => {
   configureTestEmail();
+
   process.env.JWT_SECRET = 'test-jwt-secret';
   process.env.API_KEY = 'test-api-key';
+
   const logs = [];
   const originalConsoleError = console.error;
+
   console.error = (...args) => logs.push(args);
-  mockFetch({ ok: false, status: 403 });
+  mockFetch({
+    ok: false,
+    status: 403,
+    async text() {
+      return 'test error response';
+    }
+  });
 
   try {
     await assert.rejects(
@@ -97,14 +139,16 @@ test('Resend failures log only the HTTP status and do not expose secrets', async
       { message: 'Email delivery failed.' }
     );
 
-    assert.deepEqual(logs, [['Resend email delivery failed with HTTP status:', 403]]);
+    assert.deepEqual(logs, [
+      ['Brevo email delivery failed:', 403, 'test error response']
+    ]);
 
     const serializedLogs = JSON.stringify(logs);
+
     for (const secret of [
-      testResendApiKey,
+      testBrevoApiKey,
       process.env.JWT_SECRET,
-      process.env.API_KEY,
-      'Bearer'
+      process.env.API_KEY
     ]) {
       assert.equal(serializedLogs.includes(secret), false);
     }
@@ -113,10 +157,12 @@ test('Resend failures log only the HTTP status and do not expose secrets', async
   }
 });
 
-test('email delivery rejects incomplete Resend configuration without making a request', async () => {
+test('email delivery rejects incomplete Brevo configuration', async () => {
   configureTestEmail();
-  delete process.env.RESEND_API_KEY;
+  delete process.env.BREVO_API_KEY;
+
   let requestMade = false;
+
   global.fetch = async () => {
     requestMade = true;
     throw new Error('Request should not be made.');
@@ -126,5 +172,6 @@ test('email delivery rejects incomplete Resend configuration without making a re
     sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
     { message: 'Email service environment configuration is incomplete.' }
   );
+
   assert.equal(requestMade, false);
 });
