@@ -8,25 +8,45 @@ function escapeHtml(value) {
 }
 
 async function sendHtmlEmail({ to, subject, html, text }) {
-  const { RESEND_API_KEY: apiKey, EMAIL_FROM: from } = process.env;
+  const apiKey = process.env.BREVO_API_KEY;
+  const from = process.env.EMAIL_FROM;
 
   if (!apiKey || !from) {
     throw new Error('Email service environment configuration is incomplete.');
   }
 
-  const response = await fetch('https://api.resend.com/emails', {
+  const match = from.match(/^(.*?)\s*<([^<>]+)>$/);
+  const sender = match
+    ? { name: match[1].replace(/^["']|["']$/g, ''), email: match[2] }
+    : { email: from };
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      'api-key': apiKey,
+      'accept': 'application/json',
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ from, to, subject, html, text })
+    body: JSON.stringify({
+      sender,
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+      textContent: text
+    })
   });
 
   if (!response.ok) {
-    console.error('Resend email delivery failed with HTTP status:', response.status);
+    const errorBody = await response.text();
+    console.error(
+      'Brevo email delivery failed:',
+      response.status,
+      errorBody
+    );
     throw new Error('Email delivery failed.');
   }
+
+  console.log('Email accepted by Brevo.');
 }
 
 async function sendWelcomeEmail(user) {
