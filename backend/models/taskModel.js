@@ -29,6 +29,15 @@ async function createTask({
   return result.rows[0];
 }
 
+async function getOwnerEmail(ownerId) {
+  const result = await pool.query(
+    'SELECT email FROM users WHERE id = $1',
+    [ownerId]
+  );
+
+  return result.rows[0] && result.rows[0].email;
+}
+
 async function getTasksByOwner(ownerId) {
   const result = await pool.query(
     `SELECT ${taskFields}
@@ -112,6 +121,7 @@ async function deleteTask(taskId, ownerId) {
 
 module.exports = {
   createTask,
+  getOwnerEmail,
   getTasksByOwner,
   getTaskById,
   getTaskForOwner,

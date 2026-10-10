@@ -10,6 +10,8 @@ let tasks = [];
 let nextUserId = 1;
 let nextTaskId = 1;
 const welcomeEmailRecipients = [];
+const taskCreatedEmails = [];
+let uploadedCloudinaryImage = null;
 
 const poolStub = {
   async query(sql, values) {
@@ -42,6 +44,10 @@ const taskModelStub = {
     tasks.push(created);
     return { ...created };
   },
+  async getOwnerEmail(ownerId) {
+    const user = users.find((item) => item.id === ownerId);
+    return user && user.email;
+  },
   async getTasksByOwner(ownerId) {
     return tasks.filter((task) => task.owner_id === ownerId).map((task) => ({ ...task }));
   },
@@ -68,9 +74,16 @@ const taskModelStub = {
 
 const emailServiceStub = {
   failWelcomeEmail: false,
+  failTaskCreatedEmail: false,
   async sendWelcomeEmail(user) {
     welcomeEmailRecipients.push(user.email);
     if (emailServiceStub.failWelcomeEmail) {
+      throw new Error('Email delivery failed.');
+    }
+  },
+  async sendTaskCreatedEmail(task) {
+    taskCreatedEmails.push(task);
+    if (emailServiceStub.failTaskCreatedEmail) {
       throw new Error('Email delivery failed.');
     }
   },
@@ -79,6 +92,9 @@ const emailServiceStub = {
 
 const cloudinaryServiceStub = {
   async uploadImage() {
+    if (uploadedCloudinaryImage) {
+      return uploadedCloudinaryImage;
+    }
     throw new Error('Cloudinary must not be called in these tests.');
   },
   async deleteImage() {
@@ -176,7 +192,10 @@ beforeEach(() => {
   nextUserId = 1;
   nextTaskId = 1;
   welcomeEmailRecipients.length = 0;
+  taskCreatedEmails.length = 0;
+  uploadedCloudinaryImage = null;
   emailServiceStub.failWelcomeEmail = false;
+  emailServiceStub.failTaskCreatedEmail = false;
 });
 
 test('CORS preflight succeeds for the configured frontend origin', () => {
@@ -393,6 +412,51 @@ test('task create, list, read, update, and delete work', async () => {
   assert.equal(deleted.statusCode, 200);
   const afterDelete = await callHandler(handleTaskRoute, 'GET', `/tasks/${taskId}`, undefined, token);
   assert.equal(afterDelete.statusCode, 404);
+});
+
+test('task creation emails the saved task details to its authenticated owner', async () => {
+  const { user, token } = await createAuthenticatedUser('task-owner@example.test');
+  uploadedCloudinaryImage = {
+    secureUrl: 'https://images.example.test/task-image.jpg',
+    publicId: 'tasks/task-image'
+  };
+  const response = await createTask(token, {
+    title: 'Email task',
+    description: 'Task description',
+    status: 'pending',
+    due_date: '2026-10-11',
+    image_url: 'https://uploads.example.test/source.jpg'
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(taskCreatedEmails.length, 1);
+  assert.equal(taskCreatedEmails[0].email, user.email);
+  assert.equal(taskCreatedEmails[0].title, response.body.task.title);
+  assert.equal(taskCreatedEmails[0].description, 'Task description');
+  assert.equal(taskCreatedEmails[0].due_date, '2026-10-11');
+  assert.equal(taskCreatedEmails[0].status, 'pending');
+  assert.equal(taskCreatedEmails[0].image_url, uploadedCloudinaryImage.secureUrl);
+});
+
+test('task creation succeeds when task-created email delivery fails', async () => {
+  const { token } = await createAuthenticatedUser('email-failure@example.test');
+  emailServiceStub.failTaskCreatedEmail = true;
+  const originalConsoleError = console.error;
+  const loggedErrors = [];
+  console.error = (...args) => loggedErrors.push(args);
+
+  try {
+    const response = await createTask(token, { title: 'Persisted task' });
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(response.body.task.title, 'Persisted task');
+    assert.equal(tasks.length, 1);
+    assert.equal(taskCreatedEmails.length, 1);
+    assert.match(loggedErrors[0][0], /Task-created email could not be sent/);
+    assert.match(loggedErrors[0][1], /Email delivery failed/);
+  } finally {
+    console.error = originalConsoleError;
+  }
 });
 
 test('invalid task payload is rejected', async () => {

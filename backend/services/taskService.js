@@ -1,6 +1,7 @@
 const taskModel = require('../models/taskModel');
 const { validateTaskPayload } = require('../validators/taskValidator');
 const cloudinaryService = require('./cloudinaryService');
+const { sendTaskCreatedEmail } = require('./emailService');
 
 function validatePayload(payload) {
   const validation = validateTaskPayload(payload);
@@ -61,8 +62,9 @@ async function createTask(authenticatedUserId, payload, imageFile = null) {
   const taskValues = validatePayload(payload);
   const uploadedImage = await uploadPayloadImage(taskValues, imageFile);
 
+  let task;
   try {
-    return await taskModel.createTask({
+    task = await taskModel.createTask({
       owner_id: authenticatedUserId,
       ...taskValues,
       image_url: uploadedImage ? uploadedImage.secureUrl : null,
@@ -72,6 +74,19 @@ async function createTask(authenticatedUserId, payload, imageFile = null) {
     await cleanupUploadedImage(uploadedImage);
     throw error;
   }
+
+  try {
+    const email = await taskModel.getOwnerEmail(authenticatedUserId);
+    if (!email) {
+      throw new Error('Task owner email address was not found.');
+    }
+
+    await sendTaskCreatedEmail({ email, ...task });
+  } catch (error) {
+    console.error('Task-created email could not be sent:', error.message);
+  }
+
+  return task;
 }
 
 async function listTasks(authenticatedUserId) {

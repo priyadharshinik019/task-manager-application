@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { afterEach, test } = require('node:test');
 
 const {
+  sendTaskCreatedEmail,
   sendDueDateReminderEmail,
   sendWelcomeEmail
 } = require('../services/emailService');
@@ -113,6 +114,56 @@ test('due-date reminder uses Brevo with the escaped template', async () => {
     message.textContent,
     'Reminder: "<Review & finish>" is due on 2030-05-06 00:00:00 UTC.'
   );
+});
+
+test('task-created email uses Brevo and includes escaped task details', async () => {
+  configureTestEmail();
+  const getRequest = mockFetch({ ok: true });
+
+  await sendTaskCreatedEmail({
+    email: 'alice@example.test',
+    title: '<Review & finish>',
+    description: '<script>alert("x")</script> & details',
+    due_date: '2030-05-06',
+    status: 'pending',
+    image_url: 'https://images.example.test/task?a=1&b=2'
+  });
+
+  const request = getRequest();
+  assert.equal(request.url, 'https://api.brevo.com/v3/smtp/email');
+  assert.equal(request.options.headers['api-key'], testBrevoApiKey);
+
+  const message = JSON.parse(request.options.body);
+  assert.deepEqual(message.to, [{ email: 'alice@example.test' }]);
+  assert.equal(message.subject, 'Task created: <Review & finish>');
+  assert.match(message.htmlContent, /&lt;Review &amp; finish&gt;/);
+  assert.match(message.htmlContent, /&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt; &amp; details/);
+  assert.match(message.htmlContent, /2030-05-06/);
+  assert.match(message.htmlContent, />pending</);
+  assert.match(message.htmlContent, /https:\/\/images\.example\.test\/task\?a=1&amp;b=2/);
+  assert.doesNotMatch(message.htmlContent, /<script>/);
+  assert.match(message.textContent, /Description: <script>alert\("x"\)<\/script> & details/);
+});
+
+test('task-created email renders optional fields when absent', async () => {
+  configureTestEmail();
+  const getRequest = mockFetch({ ok: true });
+
+  await sendTaskCreatedEmail({
+    email: 'alice@example.test',
+    title: 'A task',
+    description: null,
+    due_date: null,
+    status: 'pending',
+    image_url: null
+  });
+
+  const message = JSON.parse(getRequest().options.body);
+  assert.match(message.htmlContent, /No description provided\./);
+  assert.match(message.htmlContent, />Not set</);
+  assert.doesNotMatch(message.htmlContent, /Task image/);
+  assert.match(message.textContent, /Due date: Not set/);
+  assert.doesNotMatch(message.textContent, /Task image:/);
 });
 
 test('Brevo failures do not expose secrets in logs', async () => {
