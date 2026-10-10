@@ -1,4 +1,3 @@
-
 const assert = require('node:assert/strict');
 const { afterEach, test } = require('node:test');
 
@@ -11,18 +10,15 @@ const {
 
 const originalFetch = global.fetch;
 const environmentNames = [
-  'BREVO_API_KEY',
-  'RESEND_API_KEY',
-  'EMAIL_FROM',
-  'JWT_SECRET',
-  'API_KEY'
+  'EMAILJS_SERVICE_ID',
+  'EMAILJS_TEMPLATE_ID',
+  'EMAILJS_PUBLIC_KEY',
+  'EMAIL_FROM'
 ];
-
 const originalEnvironment = Object.fromEntries(
   environmentNames.map((name) => [name, process.env[name]])
 );
-
-const testBrevoApiKey = 'test-only-brevo-api-key';
+const testPublicKey = 'test-only-emailjs-public-key';
 
 afterEach(() => {
   global.fetch = originalFetch;
@@ -37,22 +33,34 @@ afterEach(() => {
 });
 
 function configureTestEmail() {
-  process.env.BREVO_API_KEY = testBrevoApiKey;
-  process.env.EMAIL_FROM = 'Task Manager <taskflow@example.test>';
+  process.env.EMAILJS_SERVICE_ID = 'service_test';
+  process.env.EMAILJS_TEMPLATE_ID = 'template_test';
+  process.env.EMAILJS_PUBLIC_KEY = testPublicKey;
 }
 
 function mockFetch(response) {
   let request;
-
   global.fetch = async (url, options) => {
     request = { url, options };
     return response;
   };
-
   return () => request;
 }
 
-test('welcome email uses Brevo and sends to the new user', async () => {
+function readTemplateParams(getRequest) {
+  const request = getRequest();
+  assert.equal(request.url, 'https://api.emailjs.com/api/v1.0/email/send');
+  assert.equal(request.options.method, 'POST');
+  assert.equal(request.options.headers['Content-Type'], 'application/json');
+
+  const payload = JSON.parse(request.options.body);
+  assert.equal(payload.service_id, 'service_test');
+  assert.equal(payload.template_id, 'template_test');
+  assert.equal(payload.user_id, testPublicKey);
+  return payload.template_params;
+}
+
+test('welcome email uses EmailJS with the welcome template variables', async () => {
   configureTestEmail();
   const getRequest = mockFetch({ ok: true });
 
@@ -61,63 +69,25 @@ test('welcome email uses Brevo and sends to the new user', async () => {
     email: 'alice@example.test'
   });
 
-  const request = getRequest();
-
-  assert.equal(
-    request.url,
-    'https://api.brevo.com/v3/smtp/email'
-  );
-  assert.equal(request.options.method, 'POST');
-  assert.equal(
-    request.options.headers['api-key'],
-    testBrevoApiKey
-  );
-
-  const message = JSON.parse(request.options.body);
-
-  assert.deepEqual(message.sender, {
-    name: 'Task Manager',
-    email: 'taskflow@example.test'
-  });
-  assert.deepEqual(message.to, [{ email: 'alice@example.test' }]);
-  assert.equal(message.subject, 'Welcome to Task Manager');
-  assert.match(message.htmlContent, /Welcome, &lt;Alice &amp; Bob&gt;/);
-  assert.equal(
-    message.textContent,
-    'Welcome, <Alice & Bob>. Your Task Manager account has been created successfully.'
-  );
-});
-
-test('due-date reminder uses Brevo with the escaped template', async () => {
-  configureTestEmail();
-  const getRequest = mockFetch({ ok: true });
-
-  await sendDueDateReminderEmail({
+  const params = readTemplateParams(getRequest);
+  assert.deepEqual(params, {
+    to_email: 'alice@example.test',
+    subject: 'Welcome to Task Manager',
+    heading: 'Welcome, &lt;Alice &amp; Bob&gt;',
+    message: 'Your Task Manager account has been created successfully.',
+    task_title: '',
+    description: '',
+    due_date: '',
+    status: '',
+    image_url: '',
+    name: '&lt;Alice &amp; Bob&gt;',
     email: 'alice@example.test',
-    title: '<Review & finish>',
-    due_date: '2030-05-06T00:00:00.000Z'
+    time: params.time
   });
-
-  const request = getRequest();
-
-  assert.equal(
-    request.url,
-    'https://api.brevo.com/v3/smtp/email'
-  );
-
-  const message = JSON.parse(request.options.body);
-
-  assert.deepEqual(message.to, [{ email: 'alice@example.test' }]);
-  assert.equal(message.subject, 'Task due tomorrow');
-  assert.match(message.htmlContent, /&lt;Review &amp; finish&gt;/);
-  assert.match(message.htmlContent, /2030-05-06 00:00:00 UTC/);
-  assert.equal(
-    message.textContent,
-    'Reminder: "<Review & finish>" is due on 2030-05-06 00:00:00 UTC.'
-  );
+  assert.ok(Number.isFinite(Date.parse(params.time)));
 });
 
-test('task-created email uses Brevo and includes escaped task details', async () => {
+test('task-created email maps escaped fields and image URL into template variables', async () => {
   configureTestEmail();
   const getRequest = mockFetch({ ok: true });
 
@@ -130,23 +100,21 @@ test('task-created email uses Brevo and includes escaped task details', async ()
     image_url: 'https://images.example.test/task?a=1&b=2'
   });
 
-  const request = getRequest();
-  assert.equal(request.url, 'https://api.brevo.com/v3/smtp/email');
-  assert.equal(request.options.headers['api-key'], testBrevoApiKey);
-
-  const message = JSON.parse(request.options.body);
-  assert.deepEqual(message.to, [{ email: 'alice@example.test' }]);
-  assert.equal(message.subject, 'Task created: <Review & finish>');
-  assert.match(message.htmlContent, /&lt;Review &amp; finish&gt;/);
-  assert.match(message.htmlContent, /&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt; &amp; details/);
-  assert.match(message.htmlContent, /2030-05-06/);
-  assert.match(message.htmlContent, />pending</);
-  assert.match(message.htmlContent, /https:\/\/images\.example\.test\/task\?a=1&amp;b=2/);
-  assert.doesNotMatch(message.htmlContent, /<script>/);
-  assert.match(message.textContent, /Description: <script>alert\("x"\)<\/script> & details/);
+  const params = readTemplateParams(getRequest);
+  assert.equal(params.to_email, 'alice@example.test');
+  assert.equal(params.email, 'alice@example.test');
+  assert.equal(params.subject, 'Task created successfully');
+  assert.equal(params.heading, 'Task created successfully');
+  assert.equal(params.task_title, '&lt;Review &amp; finish&gt;');
+  assert.equal(params.description, '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; details');
+  assert.equal(params.due_date, '2030-05-06');
+  assert.equal(params.status, 'pending');
+  assert.equal(params.image_url, 'https://images.example.test/task?a=1&amp;b=2');
+  assert.equal(params.name, '');
+  assert.ok(Number.isFinite(Date.parse(params.time)));
 });
 
-test('task-created email renders optional fields when absent', async () => {
+test('task-created email supplies safe defaults and an empty image URL when absent', async () => {
   configureTestEmail();
   const getRequest = mockFetch({ ok: true });
 
@@ -159,94 +127,125 @@ test('task-created email renders optional fields when absent', async () => {
     image_url: null
   });
 
-  const message = JSON.parse(getRequest().options.body);
-  assert.match(message.htmlContent, /No description provided\./);
-  assert.match(message.htmlContent, />Not set</);
-  assert.doesNotMatch(message.htmlContent, /Task image/);
-  assert.match(message.textContent, /Due date: Not set/);
-  assert.doesNotMatch(message.textContent, /Task image:/);
+  const params = readTemplateParams(getRequest);
+  assert.equal(params.description, 'No description provided.');
+  assert.equal(params.due_date, 'Not set');
+  assert.equal(params.image_url, '');
 });
 
-test('daily pending-task reminder uses Brevo and escapes task details', async () => {
+test('due-date reminder passes formatted due date and compatible template fields', async () => {
+  configureTestEmail();
+  const getRequest = mockFetch({ ok: true });
+
+  await sendDueDateReminderEmail({
+    email: 'alice@example.test',
+    title: '<Review & finish>',
+    due_date: '2030-05-06T00:00:00.000Z'
+  });
+
+  const params = readTemplateParams(getRequest);
+  assert.equal(params.to_email, 'alice@example.test');
+  assert.equal(params.subject, 'Task due tomorrow');
+  assert.equal(params.heading, 'Task due tomorrow');
+  assert.equal(params.message, 'This is a reminder that this task is due on 2030-05-06 00:00:00 UTC.');
+  assert.equal(params.task_title, '&lt;Review &amp; finish&gt;');
+  assert.equal(params.due_date, '2030-05-06 00:00:00 UTC');
+  assert.equal(params.image_url, '');
+});
+
+test('daily reminder maps recipient name and escaped task details', async () => {
   configureTestEmail();
   const getRequest = mockFetch({ ok: true });
 
   await sendPendingTaskReminderEmail({
     email: 'alice@example.test',
+    name: '<Alice & Bob>',
     title: '<Review & finish>',
     description: '<script>unsafe</script>',
-    due_date: null,
+    due_date: '2030-05-06',
     status: 'pending',
-    image_url: null
+    image_url: 'https://images.example.test/task.png'
   });
 
-  const message = JSON.parse(getRequest().options.body);
-  assert.deepEqual(message.to, [{ email: 'alice@example.test' }]);
-  assert.equal(message.subject, 'Daily reminder: <Review & finish>');
-  assert.match(message.htmlContent, /&lt;Review &amp; finish&gt;/);
-  assert.match(message.htmlContent, /&lt;script&gt;unsafe&lt;\/script&gt;/);
-  assert.match(message.htmlContent, />Not set</);
-  assert.match(message.htmlContent, />pending</);
-  assert.doesNotMatch(message.htmlContent, /<script>/);
+  const params = readTemplateParams(getRequest);
+  assert.equal(params.to_email, 'alice@example.test');
+  assert.equal(params.subject, 'Daily pending task reminder');
+  assert.equal(params.heading, 'Daily task reminder');
+  assert.equal(params.name, '&lt;Alice &amp; Bob&gt;');
+  assert.equal(params.task_title, '&lt;Review &amp; finish&gt;');
+  assert.equal(params.description, '&lt;script&gt;unsafe&lt;/script&gt;');
+  assert.equal(params.due_date, '2030-05-06');
+  assert.equal(params.status, 'pending');
+  assert.equal(params.image_url, 'https://images.example.test/task.png');
+  assert.ok(Number.isFinite(Date.parse(params.time)));
 });
 
-test('Brevo failures do not expose secrets in logs', async () => {
+test('EmailJS HTTP errors expose status only, not the provider response body', async () => {
   configureTestEmail();
-
-  process.env.JWT_SECRET = 'test-jwt-secret';
-  process.env.API_KEY = 'test-api-key';
-
   const logs = [];
   const originalConsoleError = console.error;
-
   console.error = (...args) => logs.push(args);
   mockFetch({
     ok: false,
     status: 403,
     async text() {
-      return 'test error response';
+      return 'private body containing credentials';
     }
   });
 
   try {
     await assert.rejects(
       sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
-      { message: 'Email delivery failed.' }
+      {
+        code: 'EMAIL_DELIVERY_FAILED',
+        message: 'EmailJS delivery failed (HTTP 403).'
+      }
     );
-
-    assert.deepEqual(logs, [
-      ['Brevo email delivery failed:', 403, 'test error response']
-    ]);
-
-    const serializedLogs = JSON.stringify(logs);
-
-    for (const secret of [
-      testBrevoApiKey,
-      process.env.JWT_SECRET,
-      process.env.API_KEY
-    ]) {
-      assert.equal(serializedLogs.includes(secret), false);
-    }
+    assert.deepEqual(logs, []);
   } finally {
     console.error = originalConsoleError;
   }
 });
 
-test('email delivery rejects incomplete Brevo configuration', async () => {
+test('EmailJS network errors are sanitized without logging request data', async () => {
   configureTestEmail();
-  delete process.env.BREVO_API_KEY;
+  const originalConsoleError = console.error;
+  console.error = () => {
+    throw new Error('Email content must not be logged.');
+  };
+  global.fetch = async () => {
+    throw Object.assign(
+      new Error(`Network failure with ${testPublicKey} and private email content`),
+      { code: 'ECONNRESET' }
+    );
+  };
+
+  try {
+    await assert.rejects(
+      sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
+      {
+        code: 'EMAIL_DELIVERY_FAILED',
+        message: 'EmailJS request failed (ECONNRESET).'
+      }
+    );
+  } finally {
+    console.error = originalConsoleError;
+  }
+});
+
+test('EmailJS delivery rejects incomplete configuration without making a request', async () => {
+  configureTestEmail();
+  delete process.env.EMAILJS_PUBLIC_KEY;
 
   let requestMade = false;
-
   global.fetch = async () => {
     requestMade = true;
-    throw new Error('Request should not be made.');
+    return { ok: true };
   };
 
   await assert.rejects(
     sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
-    { message: 'Email service environment configuration is incomplete.' }
+    { message: 'EmailJS environment configuration is incomplete.' }
   );
-
   assert.equal(requestMade, false);
 });

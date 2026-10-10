@@ -76,8 +76,11 @@ async function handleAuthRoute(request, response) {
     }
 
     const user = await registerUser(validation.value);
-    void sendWelcomeEmail({ name: user.name, email: user.email }).catch(() => {
-      console.error('Welcome email could not be sent.');
+    void sendWelcomeEmail({ name: user.name, email: user.email }).catch((error) => {
+      console.error(
+        'Welcome email could not be sent:',
+        error.code || 'EMAIL_DELIVERY_FAILED'
+      );
     });
     sendJson(response, 201, { user });
   } catch (error) {

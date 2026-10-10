@@ -111,7 +111,7 @@ test('scheduler retries failed reminder delivery and records only successful sen
       sentEmails.push(task);
       if (failFirstAttempt) {
         failFirstAttempt = false;
-        throw new Error('Brevo temporarily unavailable.');
+        throw new Error('Gmail SMTP temporarily unavailable.');
       }
     }
   });
@@ -143,7 +143,7 @@ test('scheduler retries failed reminder delivery and records only successful sen
     assert.equal(sentEmails[1].id, sentEmails[0].id);
     assert.deepEqual([...sentReminderIds], [1]);
     assert.match(loggedErrors[0][0], /task 1/);
-    assert.match(loggedErrors[0][1], /Brevo temporarily unavailable/);
+    assert.match(loggedErrors[0][1], /Gmail SMTP temporarily unavailable/);
 
     scheduledCheck();
     await flushCheck();

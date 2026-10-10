@@ -11,7 +11,7 @@ A full-stack task management application for creating and organizing personal ta
 - Upload a task image or provide an HTTPS image URL. Images are stored in Cloudinary.
 - Search tasks by title and filter by status.
 - Toggle between light and dark themes; the selected theme is saved in browser local storage.
-- Send welcome and due-date reminder emails using Gmail SMTP.
+- Send welcome, task-created, due-date, and daily pending-task emails using Gmail SMTP.
 
 ## Technology stack
 
@@ -53,11 +53,11 @@ The task list can be searched by title and filtered by `pending`, `in_progress`,
 
 The interface has light and dark themes. The selected theme is stored in browser local storage and restored on subsequent visits.
 
-### Due-date email reminders
+### Email notifications and reminders
 
-The backend scheduler checks periodically for tasks in a narrow window approximately 24 hours before their due date and sends a reminder email for tasks whose status is not `completed`. Duplicate reminders for a task and due date are suppressed in the running server process, but this tracking is in memory and resets when the server restarts.
+The backend sends a welcome email after registration and a task summary after task creation. Its scheduler sends one daily reminder for each task that remains `pending`; reminder sends are tracked in PostgreSQL to prevent duplicates on the same day. A due-date reminder email template is also available.
 
-Welcome and reminder emails are sent through the Resend HTTPS API. Configure `RESEND_API_KEY` and `EMAIL_FROM` in the backend environment.
+Emails are sent through EmailJS's server-side REST API. Configure `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, and `EMAILJS_PUBLIC_KEY` in the backend environment. The configured template must use `to_email` as its recipient and render the supplied `subject`, `heading`, `message`, `task_title`, `description`, `due_date`, `status`, `image_url`, `name`, `email`, and `time` variables as appropriate. Make the template's image preview conditional on `image_url` being non-empty.
 
 ### Cloudinary images
 
@@ -114,8 +114,9 @@ CLOUDINARY_CLOUD_NAME=<your-cloudinary-cloud-name>
 CLOUDINARY_API_KEY=<your-cloudinary-api-key>
 CLOUDINARY_API_SECRET=<your-cloudinary-api-secret>
 
-RESEND_API_KEY=<your-resend-api-key>
-EMAIL_FROM=<your-from-address>
+EMAILJS_SERVICE_ID=<your-emailjs-service-id>
+EMAILJS_TEMPLATE_ID=<your-emailjs-template-id>
+EMAILJS_PUBLIC_KEY=<your-emailjs-public-key>
 
 FRONTEND_ORIGIN=<your-frontend-origin>
 PORT=3000

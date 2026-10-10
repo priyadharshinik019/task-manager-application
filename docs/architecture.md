@@ -9,8 +9,8 @@ flowchart TD
     Tasks[Task CRUD + Validation<br/>Owner-scoped operations]
     Database[(PostgreSQL Database)]
     Cloudinary[Cloudinary<br/>Task image storage]
-    Scheduler[Reminder Scheduler<br/>Checks every 15 seconds]
-    Email[Gmail SMTP via Nodemailer]
+    Scheduler[Daily Pending-Task Reminder Scheduler]
+    Email[EmailJS Server-Side REST API]
 
     User --> Frontend
     Frontend -->|HTTP API requests| API
@@ -21,9 +21,9 @@ flowchart TD
     Tasks -->|Parameterized queries| Database
     Tasks -->|Upload, replace, or delete task images| Cloudinary
 
-    API -->|After successful registration| Email
-    Scheduler -->|Find unfinished tasks due in the 23:59–24:00 window| Database
-    Scheduler -->|Due-date reminder email| Email
+    API -->|After registration or task creation| Email
+    Scheduler -->|Find pending tasks without today's reminder| Database
+    Scheduler -->|Daily pending-task reminder| Email
     API -. starts after server begins listening .-> Scheduler
 ```
 
@@ -35,5 +35,5 @@ flowchart TD
 - **Task CRUD and validation:** Backend services validate task input and provide create, list, read, update, and delete operations for the authenticated owner.
 - **PostgreSQL:** Stores user and task records. The backend accesses it through parameterized queries.
 - **Cloudinary:** Receives task image uploads, including uploaded image files and supported HTTPS image URLs. The task stores the resulting secure image URL.
-- **Reminder scheduler:** Starts after the backend begins listening and checks every 15 seconds for tasks in the approximately 24-hour reminder window. Completed tasks are excluded; duplicate suppression is held in process memory and resets when the server restarts.
-- **Gmail SMTP:** The backend sends welcome emails after registration and due-date reminder emails through Nodemailer using server-side Gmail SMTP credentials.
+- **Reminder scheduler:** Starts after the backend begins listening and checks once per day for `pending` tasks. Reminder delivery is recorded in PostgreSQL by task and date, preventing duplicate reminders across server restarts. `completed` and `failed` tasks are not selected.
+- **EmailJS:** The backend sends welcome, task-created, due-date, and daily pending-task emails through EmailJS's server-side REST API using environment-configured service, template, and public-key values. The configured EmailJS template must render the corresponding dynamic variables and conditionally display the task image when `image_url` is non-empty.
