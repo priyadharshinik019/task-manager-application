@@ -73,7 +73,7 @@ async function getTaskForOwner(taskId, ownerId) {
 
 async function getPendingTasksForDailyReminder() {
   const result = await pool.query(
-    `SELECT tasks.id, tasks.owner_id, users.email, tasks.title,
+    `SELECT tasks.id, tasks.owner_id, users.email, users.name, tasks.title,
             tasks.description, to_char(tasks.due_date, 'YYYY-MM-DD') AS due_date,
             tasks.status, tasks.image_url
      FROM tasks

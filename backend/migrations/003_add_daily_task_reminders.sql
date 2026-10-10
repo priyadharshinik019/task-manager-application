@@ -1,3 +1,4 @@
+
 ALTER TABLE tasks
     DROP CONSTRAINT IF EXISTS tasks_status_check,
     ADD CONSTRAINT tasks_status_check
