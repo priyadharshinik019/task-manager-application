@@ -5,7 +5,7 @@ const allowedFields = new Set([
   'due_date',
   'image_url'
 ]);
-const allowedStatuses = new Set(['pending', 'in_progress', 'completed']);
+const allowedStatuses = new Set(['pending', 'in_progress', 'completed', 'failed']);
 
 function validateTaskPayload(input) {
   const errors = [];
@@ -29,7 +29,7 @@ function validateTaskPayload(input) {
 
   const status = input.status === undefined ? 'pending' : input.status;
   if (typeof status !== 'string' || !allowedStatuses.has(status)) {
-    errors.push('status must be pending, in_progress, or completed.');
+    errors.push('status must be pending, in_progress, completed, or failed.');
   }
 
   for (const field of ['description', 'due_date', 'image_url']) {

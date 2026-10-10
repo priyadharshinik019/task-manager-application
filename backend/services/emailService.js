@@ -120,8 +120,47 @@ async function sendDueDateReminderEmail({ email, title, due_date }) {
   });
 }
 
+async function sendPendingTaskReminderEmail({
+  email,
+  title,
+  description,
+  due_date,
+  status,
+  image_url
+}) {
+  const safeTitle = escapeHtml(title);
+  const safeDescription = escapeHtml(description || 'No description provided.');
+  const safeDueDate = escapeHtml(due_date || 'Not set');
+  const safeStatus = escapeHtml(status);
+  const hasImage = Boolean(image_url);
+  const safeImageUrl = hasImage ? escapeHtml(image_url) : null;
+  const html = `
+    <div style="margin:0;padding:32px 16px;background-color:#f4f6f8;font-family:Arial,sans-serif;color:#243041;">
+      <div style="max-width:560px;margin:0 auto;padding:32px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:8px;">
+        <h1 style="margin:0 0 16px;font-size:24px;line-height:1.3;color:#1f2937;">Daily task reminder</h1>
+        <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#475569;">This is your daily reminder about a task that is still pending.</p>
+        <h2 style="margin:0 0 16px;font-size:20px;line-height:1.4;color:#1f2937;">${safeTitle}</h2>
+        <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#475569;">Description</p>
+        <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#475569;white-space:pre-wrap;">${safeDescription}</p>
+        <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#475569;">Due date</p>
+        <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#475569;">${safeDueDate}</p>
+        <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#475569;">Status</p>
+        <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#475569;">${safeStatus}</p>
+        ${hasImage ? `<p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#475569;">Task image</p><p style="margin:0;font-size:16px;line-height:1.6;"><a href="${safeImageUrl}" style="color:#2563eb;">${safeImageUrl}</a></p>` : ''}
+      </div>
+    </div>`;
+
+  await sendHtmlEmail({
+    to: email,
+    subject: `Daily reminder: ${title}`,
+    html,
+    text: `Daily reminder: ${title}\nDescription: ${description || 'No description provided.'}\nDue date: ${due_date || 'Not set'}\nStatus: ${status}${hasImage ? `\nTask image: ${image_url}` : ''}`
+  });
+}
+
 module.exports = {
   sendWelcomeEmail,
   sendTaskCreatedEmail,
-  sendDueDateReminderEmail
+  sendDueDateReminderEmail,
+  sendPendingTaskReminderEmail
 };

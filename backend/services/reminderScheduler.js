@@ -1,35 +1,41 @@
 const taskModel = require('../models/taskModel');
-const { sendDueDateReminderEmail } = require('./emailService');
+const { sendPendingTaskReminderEmail } = require('./emailService');
 
-const intervalMilliseconds = 15 * 1000;
-const sentReminderKeys = new Set();
+const intervalMilliseconds = 24 * 60 * 60 * 1000;
 let interval;
 let checkInProgress = false;
 
-async function checkForDueDateReminders() {
+async function checkForPendingTaskReminders() {
   if (checkInProgress) {
     return;
   }
 
   checkInProgress = true;
   try {
-    const tasks = await taskModel.getTasksInReminderWindow();
+    const tasks = await taskModel.getPendingTasksForDailyReminder();
 
     for (const task of tasks) {
-      const reminderKey = `${task.id}:${new Date(task.due_date).toISOString()}`;
-      if (sentReminderKeys.has(reminderKey)) {
+      try {
+        await sendPendingTaskReminderEmail(task);
+      } catch (error) {
+        console.error(
+          `A pending-task reminder for task ${task.id} could not be sent:`,
+          error.message
+        );
         continue;
       }
 
       try {
-        await sendDueDateReminderEmail(task);
-        sentReminderKeys.add(reminderKey);
-      } catch {
-        console.error('A due-date reminder email could not be sent.');
+        await taskModel.markTaskReminderSent(task.id);
+      } catch (error) {
+        console.error(
+          `A pending-task reminder for task ${task.id} was sent, but its delivery could not be recorded:`,
+          error.message
+        );
       }
     }
-  } catch {
-    console.error('The due-date reminder check failed.');
+  } catch (error) {
+    console.error('The pending-task reminder check failed:', error.message);
   } finally {
     checkInProgress = false;
   }
@@ -40,11 +46,9 @@ function startReminderScheduler() {
     return;
   }
 
-  // The query window matches the scheduler cadence; duplicate tracking is
-  // process-local and resets when the server restarts.
-  void checkForDueDateReminders();
+  void checkForPendingTaskReminders();
   interval = setInterval(() => {
-    void checkForDueDateReminders();
+    void checkForPendingTaskReminders();
   }, intervalMilliseconds);
   interval.unref();
 }

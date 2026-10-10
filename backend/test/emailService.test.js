@@ -5,6 +5,7 @@ const { afterEach, test } = require('node:test');
 const {
   sendTaskCreatedEmail,
   sendDueDateReminderEmail,
+  sendPendingTaskReminderEmail,
   sendWelcomeEmail
 } = require('../services/emailService');
 
@@ -164,6 +165,29 @@ test('task-created email renders optional fields when absent', async () => {
   assert.doesNotMatch(message.htmlContent, /Task image/);
   assert.match(message.textContent, /Due date: Not set/);
   assert.doesNotMatch(message.textContent, /Task image:/);
+});
+
+test('daily pending-task reminder uses Brevo and escapes task details', async () => {
+  configureTestEmail();
+  const getRequest = mockFetch({ ok: true });
+
+  await sendPendingTaskReminderEmail({
+    email: 'alice@example.test',
+    title: '<Review & finish>',
+    description: '<script>unsafe</script>',
+    due_date: null,
+    status: 'pending',
+    image_url: null
+  });
+
+  const message = JSON.parse(getRequest().options.body);
+  assert.deepEqual(message.to, [{ email: 'alice@example.test' }]);
+  assert.equal(message.subject, 'Daily reminder: <Review & finish>');
+  assert.match(message.htmlContent, /&lt;Review &amp; finish&gt;/);
+  assert.match(message.htmlContent, /&lt;script&gt;unsafe&lt;\/script&gt;/);
+  assert.match(message.htmlContent, />Not set</);
+  assert.match(message.htmlContent, />pending</);
+  assert.doesNotMatch(message.htmlContent, /<script>/);
 });
 
 test('Brevo failures do not expose secrets in logs', async () => {

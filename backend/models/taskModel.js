@@ -71,19 +71,34 @@ async function getTaskForOwner(taskId, ownerId) {
   return result.rows[0];
 }
 
-async function getTasksInReminderWindow() {
+async function getPendingTasksForDailyReminder() {
   const result = await pool.query(
     `SELECT tasks.id, tasks.owner_id, users.email, tasks.title,
-            tasks.due_date
+            tasks.description, to_char(tasks.due_date, 'YYYY-MM-DD') AS due_date,
+            tasks.status, tasks.image_url
      FROM tasks
      INNER JOIN users ON users.id = tasks.owner_id
-     WHERE tasks.due_date <= CURRENT_TIMESTAMP + $1::interval
-       AND tasks.due_date > CURRENT_TIMESTAMP + $2::interval
-       AND tasks.status <> $3`,
-    ['24 hours', '23 hours 59 minutes', 'completed']
+     WHERE tasks.status = 'pending'
+       AND NOT EXISTS (
+         SELECT 1
+         FROM task_daily_reminders
+         WHERE task_daily_reminders.task_id = tasks.id
+           AND task_daily_reminders.reminder_date = CURRENT_DATE
+       )`
   );
 
   return result.rows;
+}
+
+async function markTaskReminderSent(taskId) {
+  const result = await pool.query(
+    `INSERT INTO task_daily_reminders (task_id, reminder_date)
+     VALUES ($1, CURRENT_DATE)
+     ON CONFLICT (task_id, reminder_date) DO NOTHING`,
+    [taskId]
+  );
+
+  return result.rowCount > 0;
 }
 
 async function updateTask(taskId, ownerId, {
@@ -125,7 +140,8 @@ module.exports = {
   getTasksByOwner,
   getTaskById,
   getTaskForOwner,
-  getTasksInReminderWindow,
+  getPendingTasksForDailyReminder,
+  markTaskReminderSent,
   updateTask,
   deleteTask
 };
