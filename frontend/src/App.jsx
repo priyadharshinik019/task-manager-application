@@ -450,7 +450,7 @@ function App() {
 
         {!tasksLoading && (
           <section className="dashboard-reminder" aria-live="polite">
-            <h2>Welcome back, {displayName}! 👋</h2>
+            <h2>Welcome back, {user.name}! 👋</h2>
             <div className="dashboard-stats">
               <article className="dashboard-stat">
                 <span>Pending tasks</span>
