@@ -7,6 +7,47 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function getTrimmedEnv(name) {
+  const value = process.env[name];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function logEnvironmentDiagnostic() {
+  console.error('EmailJS environment configuration diagnostic:', {
+    EMAILJS_SERVICE_ID: Boolean(getTrimmedEnv('EMAILJS_SERVICE_ID')),
+    EMAILJS_TEMPLATE_ID: Boolean(getTrimmedEnv('EMAILJS_TEMPLATE_ID')),
+    EMAILJS_PUBLIC_KEY: Boolean(getTrimmedEnv('EMAILJS_PUBLIC_KEY')),
+    EMAILJS_USER_ID: Boolean(getTrimmedEnv('EMAILJS_USER_ID')),
+    hasPublicKey: Boolean(getTrimmedEnv('EMAILJS_PUBLIC_KEY') || getTrimmedEnv('EMAILJS_USER_ID')),
+    hasPrivateKey: Boolean(getTrimmedEnv('EMAILJS_PRIVATE_KEY') || getTrimmedEnv('EMAILJS_ACCESS_TOKEN'))
+  });
+}
+
+function sanitizeResponseText(text) {
+  let message = typeof text === 'string' ? text.trim() : '';
+  if (!message) {
+    return 'No error details provided by provider.';
+  }
+
+  for (const [name, value] of Object.entries(process.env)) {
+    if (
+      value &&
+      typeof value === 'string' &&
+      value.length > 2 &&
+      /(PASSWORD|SECRET|KEY|TOKEN)/i.test(name)
+    ) {
+      message = message.split(value).join('[REDACTED]');
+    }
+  }
+
+  message = message.replace(/<[^>]*>/g, '').trim();
+  if (message.length > 200) {
+    message = message.slice(0, 200) + '...';
+  }
+
+  return message;
+}
+
 async function sendTemplateEmail({
   to,
   subject,
@@ -20,12 +61,13 @@ async function sendTemplateEmail({
   name = '',
   time = new Date().toISOString()
 }) {
-  const serviceId = process.env.EMAILJS_SERVICE_ID;
-  const templateId = process.env.EMAILJS_TEMPLATE_ID;
-  const publicKey = process.env.EMAILJS_PUBLIC_KEY || process.env.EMAILJS_USER_ID;
-  const privateKey = process.env.EMAILJS_PRIVATE_KEY || process.env.EMAILJS_ACCESS_TOKEN;
+  const serviceId = getTrimmedEnv('EMAILJS_SERVICE_ID');
+  const templateId = getTrimmedEnv('EMAILJS_TEMPLATE_ID');
+  const publicKey = getTrimmedEnv('EMAILJS_PUBLIC_KEY') || getTrimmedEnv('EMAILJS_USER_ID');
+  const privateKey = getTrimmedEnv('EMAILJS_PRIVATE_KEY') || getTrimmedEnv('EMAILJS_ACCESS_TOKEN');
 
   if (!serviceId || !templateId || !publicKey) {
+    logEnvironmentDiagnostic();
     throw new Error('EmailJS environment configuration is incomplete.');
   }
 
@@ -72,10 +114,26 @@ async function sendTemplateEmail({
   }
 
   if (!response.ok) {
+    let rawText = '';
+    if (typeof response.text === 'function') {
+      try {
+        rawText = await response.text();
+      } catch {
+        rawText = '';
+      }
+    }
+
+    const sanitizedMessage = sanitizeResponseText(rawText);
+    console.error('EmailJS delivery failed:', {
+      status: response.status,
+      message: sanitizedMessage
+    });
+
     const deliveryError = new Error(
       `EmailJS delivery failed (HTTP ${response.status}).`
     );
     deliveryError.code = 'EMAIL_DELIVERY_FAILED';
+    deliveryError.status = response.status;
     throw deliveryError;
   }
 }

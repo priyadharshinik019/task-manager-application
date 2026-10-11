@@ -183,16 +183,16 @@ test('daily reminder maps recipient name and escaped task details', async () => 
   assert.ok(Number.isFinite(Date.parse(params.time)));
 });
 
-test('EmailJS HTTP errors expose status only, not the provider response body', async () => {
+test('EmailJS HTTP 401 response logs only a safe status and sanitized response message', async () => {
   configureTestEmail();
   const logs = [];
   const originalConsoleError = console.error;
   console.error = (...args) => logs.push(args);
   mockFetch({
     ok: false,
-    status: 403,
+    status: 401,
     async text() {
-      return 'private body containing credentials';
+      return `The Public Key ${testPublicKey} is invalid.`;
     }
   });
 
@@ -201,10 +201,16 @@ test('EmailJS HTTP errors expose status only, not the provider response body', a
       sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
       {
         code: 'EMAIL_DELIVERY_FAILED',
-        message: 'EmailJS delivery failed (HTTP 403).'
+        message: 'EmailJS delivery failed (HTTP 401).'
       }
     );
-    assert.deepEqual(logs, []);
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0][0], 'EmailJS delivery failed:');
+    assert.deepEqual(logs[0][1], {
+      status: 401,
+      message: 'The Public Key [REDACTED] is invalid.'
+    });
+    assert.equal(JSON.stringify(logs).includes(testPublicKey), false);
   } finally {
     console.error = originalConsoleError;
   }
@@ -239,6 +245,8 @@ test('EmailJS network errors are sanitized without logging request data', async 
 test('EmailJS delivery rejects incomplete configuration without making a request', async () => {
   configureTestEmail();
   delete process.env.EMAILJS_PUBLIC_KEY;
+  const originalConsoleError = console.error;
+  console.error = () => {};
 
   let requestMade = false;
   global.fetch = async () => {
@@ -246,11 +254,118 @@ test('EmailJS delivery rejects incomplete configuration without making a request
     return { ok: true };
   };
 
-  await assert.rejects(
-    sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
-    { message: 'EmailJS environment configuration is incomplete.' }
-  );
-  assert.equal(requestMade, false);
+  try {
+    await assert.rejects(
+      sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
+      { message: 'EmailJS environment configuration is incomplete.' }
+    );
+    assert.equal(requestMade, false);
+  } finally {
+    console.error = originalConsoleError;
+  }
+});
+
+test('EmailJS delivery rejects missing EMAILJS_SERVICE_ID and logs safe diagnostic', async () => {
+  configureTestEmail();
+  delete process.env.EMAILJS_SERVICE_ID;
+  const logs = [];
+  const originalConsoleError = console.error;
+  console.error = (...args) => logs.push(args);
+
+  try {
+    await assert.rejects(
+      sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
+      { message: 'EmailJS environment configuration is incomplete.' }
+    );
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0][0], 'EmailJS environment configuration diagnostic:');
+    assert.deepEqual(logs[0][1], {
+      EMAILJS_SERVICE_ID: false,
+      EMAILJS_TEMPLATE_ID: true,
+      EMAILJS_PUBLIC_KEY: true,
+      EMAILJS_USER_ID: false,
+      hasPublicKey: true,
+      hasPrivateKey: false
+    });
+  } finally {
+    console.error = originalConsoleError;
+  }
+});
+
+test('EmailJS delivery rejects missing EMAILJS_TEMPLATE_ID and logs safe diagnostic', async () => {
+  configureTestEmail();
+  delete process.env.EMAILJS_TEMPLATE_ID;
+  const logs = [];
+  const originalConsoleError = console.error;
+  console.error = (...args) => logs.push(args);
+
+  try {
+    await assert.rejects(
+      sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
+      { message: 'EmailJS environment configuration is incomplete.' }
+    );
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0][0], 'EmailJS environment configuration diagnostic:');
+    assert.deepEqual(logs[0][1], {
+      EMAILJS_SERVICE_ID: true,
+      EMAILJS_TEMPLATE_ID: false,
+      EMAILJS_PUBLIC_KEY: true,
+      EMAILJS_USER_ID: false,
+      hasPublicKey: true,
+      hasPrivateKey: false
+    });
+  } finally {
+    console.error = originalConsoleError;
+  }
+});
+
+test('EmailJS delivery rejects missing public key and logs safe diagnostic', async () => {
+  configureTestEmail();
+  delete process.env.EMAILJS_PUBLIC_KEY;
+  delete process.env.EMAILJS_USER_ID;
+  const logs = [];
+  const originalConsoleError = console.error;
+  console.error = (...args) => logs.push(args);
+
+  try {
+    await assert.rejects(
+      sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
+      { message: 'EmailJS environment configuration is incomplete.' }
+    );
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0][0], 'EmailJS environment configuration diagnostic:');
+    assert.deepEqual(logs[0][1], {
+      EMAILJS_SERVICE_ID: true,
+      EMAILJS_TEMPLATE_ID: true,
+      EMAILJS_PUBLIC_KEY: false,
+      EMAILJS_USER_ID: false,
+      hasPublicKey: false,
+      hasPrivateKey: false
+    });
+  } finally {
+    console.error = originalConsoleError;
+  }
+});
+
+test('EmailJS diagnostic safely reports private key presence without values', async () => {
+  configureTestEmail();
+  delete process.env.EMAILJS_SERVICE_ID;
+  process.env.EMAILJS_PRIVATE_KEY = 'super-secret-private-key';
+  const logs = [];
+  const originalConsoleError = console.error;
+  console.error = (...args) => logs.push(args);
+
+  try {
+    await assert.rejects(
+      sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' }),
+      { message: 'EmailJS environment configuration is incomplete.' }
+    );
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0][1].hasPrivateKey, true);
+    assert.equal(JSON.stringify(logs).includes('super-secret-private-key'), false);
+  } finally {
+    console.error = originalConsoleError;
+  }
 });
 
 test('EmailJS accepts EMAILJS_USER_ID as a fallback for the public key', async () => {
