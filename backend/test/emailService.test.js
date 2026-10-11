@@ -13,6 +13,9 @@ const environmentNames = [
   'EMAILJS_SERVICE_ID',
   'EMAILJS_TEMPLATE_ID',
   'EMAILJS_PUBLIC_KEY',
+  'EMAILJS_USER_ID',
+  'EMAILJS_PRIVATE_KEY',
+  'EMAILJS_ACCESS_TOKEN',
   'EMAIL_FROM'
 ];
 const originalEnvironment = Object.fromEntries(
@@ -249,3 +252,29 @@ test('EmailJS delivery rejects incomplete configuration without making a request
   );
   assert.equal(requestMade, false);
 });
+
+test('EmailJS accepts EMAILJS_USER_ID as a fallback for the public key', async () => {
+  configureTestEmail();
+  delete process.env.EMAILJS_PUBLIC_KEY;
+  process.env.EMAILJS_USER_ID = 'test-fallback-user-id';
+  const getRequest = mockFetch({ ok: true });
+
+  await sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' });
+
+  const request = getRequest();
+  const payload = JSON.parse(request.options.body);
+  assert.equal(payload.user_id, 'test-fallback-user-id');
+});
+
+test('EmailJS includes accessToken when EMAILJS_PRIVATE_KEY is configured', async () => {
+  configureTestEmail();
+  process.env.EMAILJS_PRIVATE_KEY = 'test-private-key';
+  const getRequest = mockFetch({ ok: true });
+
+  await sendWelcomeEmail({ name: 'Alice', email: 'alice@example.test' });
+
+  const request = getRequest();
+  const payload = JSON.parse(request.options.body);
+  assert.equal(payload.accessToken, 'test-private-key');
+});
+

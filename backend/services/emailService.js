@@ -22,7 +22,8 @@ async function sendTemplateEmail({
 }) {
   const serviceId = process.env.EMAILJS_SERVICE_ID;
   const templateId = process.env.EMAILJS_TEMPLATE_ID;
-  const publicKey = process.env.EMAILJS_PUBLIC_KEY;
+  const publicKey = process.env.EMAILJS_PUBLIC_KEY || process.env.EMAILJS_USER_ID;
+  const privateKey = process.env.EMAILJS_PRIVATE_KEY || process.env.EMAILJS_ACCESS_TOKEN;
 
   if (!serviceId || !templateId || !publicKey) {
     throw new Error('EmailJS environment configuration is incomplete.');
@@ -43,17 +44,23 @@ async function sendTemplateEmail({
     time: escapeHtml(time)
   };
 
+  const requestPayload = {
+    service_id: serviceId,
+    template_id: templateId,
+    user_id: publicKey,
+    template_params: templateParams
+  };
+
+  if (privateKey) {
+    requestPayload.accessToken = privateKey;
+  }
+
   let response;
   try {
     response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service_id: serviceId,
-        template_id: templateId,
-        user_id: publicKey,
-        template_params: templateParams
-      })
+      body: JSON.stringify(requestPayload)
     });
   } catch (error) {
     const code = typeof error.code === 'string' && /^[A-Z0-9_-]+$/i.test(error.code)
