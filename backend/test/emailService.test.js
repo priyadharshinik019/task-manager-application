@@ -117,7 +117,7 @@ test('task-created email maps escaped fields and image URL into template variabl
   assert.ok(Number.isFinite(Date.parse(params.time)));
 });
 
-test('task-created email supplies safe defaults and an empty image URL when absent', async () => {
+test('task-created email supplies empty strings for absent optional fields', async () => {
   configureTestEmail();
   const getRequest = mockFetch({ ok: true });
 
@@ -131,8 +131,30 @@ test('task-created email supplies safe defaults and an empty image URL when abse
   });
 
   const params = readTemplateParams(getRequest);
-  assert.equal(params.description, 'No description provided.');
-  assert.equal(params.due_date, 'Not set');
+  assert.equal(params.description, '');
+  assert.equal(params.due_date, '');
+  assert.equal(params.image_url, '');
+});
+
+test('pending reminder supplies empty strings for absent optional fields', async () => {
+  configureTestEmail();
+  const getRequest = mockFetch({ ok: true });
+
+  await sendPendingTaskReminderEmail({
+    email: 'alice@example.test',
+    name: null,
+    title: 'A task',
+    description: null,
+    due_date: null,
+    status: null,
+    image_url: null
+  });
+
+  const params = readTemplateParams(getRequest);
+  assert.equal(params.name, '');
+  assert.equal(params.description, '');
+  assert.equal(params.due_date, '');
+  assert.equal(params.status, 'pending');
   assert.equal(params.image_url, '');
 });
 

@@ -92,6 +92,20 @@ test('failed status is accepted while terminal task statuses remain non-remindab
   assert.deepEqual(candidateStatuses, ['pending']);
 });
 
+test('daily reminder query explicitly excludes completed and non-pending tasks and maps image and email', async () => {
+  reminderQueries = [];
+  sentReminderIds.clear();
+
+  const selectedTasks = await taskModel.getPendingTasksForDailyReminder();
+  const selectedStatuses = selectedTasks.map((t) => t.status);
+  assert.ok(selectedStatuses.every((s) => s === 'pending'));
+  assert.equal(selectedTasks.some((t) => t.status === 'completed'), false);
+  assert.equal(selectedTasks.some((t) => t.status === 'in_progress'), false);
+  assert.equal(selectedTasks.some((t) => t.status === 'failed'), false);
+  assert.equal(selectedTasks[0].image_url, 'https://images.example.test/task.png');
+  assert.equal(selectedTasks[0].email, 'pending@example.test');
+});
+
 test('scheduler retries failed reminder delivery and records only successful sends', async () => {
   reminderQueries = [];
   sentReminderIds.clear();

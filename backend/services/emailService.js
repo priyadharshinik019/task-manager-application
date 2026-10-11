@@ -145,7 +145,12 @@ async function sendWelcomeEmail(user) {
     subject: 'Welcome to Task Manager',
     heading: `Welcome, ${user.name}`,
     message,
-    name: user.name
+    name: user.name,
+    task_title: '',
+    description: '',
+    due_date: '',
+    status: '',
+    image_url: ''
   });
 }
 
@@ -163,24 +168,28 @@ async function sendTaskCreatedEmail({
     heading: 'Task created successfully',
     message: 'Your new task has been added to Task Manager.',
     task_title: title,
-    description: description || 'No description provided.',
-    due_date: due_date || 'Not set',
-    status,
+    description: description || '',
+    due_date: due_date || '',
+    status: status || '',
     image_url: image_url || ''
   });
 }
 
 async function sendDueDateReminderEmail({ email, title, due_date }) {
-  const dueDate = new Date(due_date)
-    .toISOString()
-    .replace('T', ' ')
-    .replace(/\.\d{3}Z$/, ' UTC');
+  const dueDate = due_date
+    ? new Date(due_date)
+        .toISOString()
+        .replace('T', ' ')
+        .replace(/\.\d{3}Z$/, ' UTC')
+    : '';
 
   await sendTemplateEmail({
     to: email,
     subject: 'Task due tomorrow',
     heading: 'Task due tomorrow',
-    message: `This is a reminder that this task is due on ${dueDate}.`,
+    message: dueDate
+      ? `This is a reminder that this task is due on ${dueDate}.`
+      : 'This is a reminder that this task is due soon.',
     task_title: title,
     due_date: dueDate
   });
@@ -201,11 +210,11 @@ async function sendPendingTaskReminderEmail({
     heading: 'Daily task reminder',
     message: 'You have a task that is still pending. Please complete your task on time!',
     task_title: title,
-    description: description || 'No description provided.',
-    due_date: due_date || 'Not set',
+    description: description || '',
+    due_date: due_date || '',
     status: status || 'pending',
     image_url: image_url || '',
-    name: name || 'User'
+    name: name || ''
   });
 }
 
